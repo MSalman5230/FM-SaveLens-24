@@ -12,13 +12,13 @@ import {
   existsSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join, resolve, sep } from "node:path";
 import { spawn } from "node:child_process";
 import { createServer } from "node:net";
 import { setTimeout as delay } from "node:timers/promises";
 import { SaveArchive, SaveError } from "../server/parser/archive.ts";
 import { readNames } from "../server/parser/strings.ts";
-const source = String.raw`C:\Users\LX\Documents\Sports Interactive\Football Manager 2024\games\Tactics Creator.fm`;
+const source = join(process.env.FMSCOUT_FIXTURE_DIR || "tests/fixtures/private", "Tactics Creator.fm");
 test("Truncated archives and absent name tables return clear format errors", () => {
   const root = mkdtempSync(join(tmpdir(), "fm24-format-"));
   try {
@@ -32,7 +32,7 @@ test("Truncated archives and absent name tables return clear format errors", () 
     b.writeUInt32LE(100, 8);
     assert.throws(() => readNames(b), SaveError);
   } finally {
-    assert.ok(resolve(root).startsWith(resolve(tmpdir()) + "\\fm24-format-"));
+    assert.ok(resolve(root).startsWith(resolve(tmpdir()) + sep + "fm24-format-"));
     rmSync(root, { recursive: true, force: true });
   }
 });
@@ -54,7 +54,7 @@ test(
         s.close(() => r(p));
       });
     });
-    const child = spawn(process.execPath, ["server/index.ts"], {
+    const child = spawn(resolve("target/release/fm-savelens-24-server" + (process.platform === "win32" ? ".exe" : "")), ["--no-open"], {
       cwd: resolve("."),
       env: { ...process.env, FMSCOUT_PORT: String(port), FMSCOUT_DATA_DIR: data },
       windowsHide: true,
@@ -69,7 +69,7 @@ test(
         if (child.exitCode !== null) r();
         else child.once("exit", () => r());
       });
-      assert.ok(resolve(root).startsWith(resolve(tmpdir()) + "\\fm24-api-"));
+      assert.ok(resolve(root).startsWith(resolve(tmpdir()) + sep + "fm24-api-"));
       rmSync(root, { recursive: true, force: true });
     });
     const call = async (path: string, method = "GET", body?: unknown) => {
@@ -80,8 +80,8 @@ test(
       });
       return { status: res.status, value: (await res.json()) as any };
     };
-    for (let i = 0; i < 100 && !logs.includes("FM Scout 24:"); i++) await delay(30);
-    assert.ok(logs.includes("FM Scout 24:"), logs);
+    for (let i = 0; i < 100 && !logs.includes("FM SaveLens 24:"); i++) await delay(30);
+    assert.ok(logs.includes("FM SaveLens 24:"), logs);
     assert.equal((await call("/settings", "PUT", { folder: join(root, "missing") })).status, 400);
     assert.equal((await call("/imports", "POST", null)).status, 400);
     assert.equal(

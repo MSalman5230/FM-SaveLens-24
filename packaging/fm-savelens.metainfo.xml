@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.MSalman5230.FMSaveLens24</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <name>FM SaveLens 24</name>
+  <summary>Explore your Football Manager 2024 saves locally</summary>
+  <description><p>Read player abilities, attributes, clubs and nationalities from supported FM24 saves. Search and filter a local scouting database without changing the original save.</p></description>
+  <launchable type="desktop-id">io.github.MSalman5230.FMSaveLens24.desktop</launchable>
+  <url type="homepage">https://github.com/MSalman5230/FM-SaveLens-24</url>
+  <url type="bugtracker">https://github.com/MSalman5230/FM-SaveLens-24/issues</url>
+  <releases><release version="@VERSION@" date="@DATE@"/></releases>
+</component>

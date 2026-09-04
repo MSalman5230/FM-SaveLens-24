@@ -1,10 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import { parseSave } from "../server/parser/index.ts";
 import { columns, reference } from "./salford-reference.ts";
-const file = String.raw`C:\Users\LX\Documents\Sports Interactive\Football Manager 2024\games\Salford - Masood.fm`;
-const editedFile = String.raw`C:\Users\LX\Documents\Sports Interactive\Football Manager 2024\games\Universal Watcher - Update.fm`;
+const file = join(process.env.FMSCOUT_FIXTURE_DIR || "tests/fixtures/private", "Salford - Masood.fm");
+const editedFile = join(process.env.FMSCOUT_FIXTURE_DIR || "tests/fixtures/private", "Universal Watcher - Update.fm");
 test('Edited databases preserve single names and resolve every detected player block',{skip:!existsSync(editedFile)},()=>{
  const save=parseSave(editedFile);
  for(const name of ['Davinchi','Denner','Belinho','Tiago'])assert.ok(save.players.some(p=>p.name===name),`Missing single-name player ${name}`);

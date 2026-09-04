@@ -1,3 +1,5 @@
+// Development reference only. The shipped service is implemented in native/service.rs.
+import { homedir } from "node:os";
 import { createServer } from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
@@ -26,7 +28,7 @@ const data =
 const cache = join(data, "snapshots");
 mkdirSync(cache, { recursive: true });
 const settingsFile = join(data, "settings.json");
-const defaultFolder = String.raw`C:\Users\LX\Documents\Sports Interactive\Football Manager 2024\games`;
+const defaultFolder = process.env.FMSCOUT_FIXTURE_DIR || join(homedir(), "Documents", "Sports Interactive", "Football Manager 2024", "games");
 let settings: { folder: string; lastSnapshot?: string } = { folder: defaultFolder };
 try {
   settings = { ...settings, ...JSON.parse(readFileSync(settingsFile, "utf8")) };
@@ -350,7 +352,7 @@ const server = createServer(async (req, res) => {
     });
   }
 });
-server.listen(port, "127.0.0.1", () => console.log(`FM Scout 24: http://127.0.0.1:${port}`));
+server.listen(port, "127.0.0.1", () => console.log(`FM SaveLens 24 (TypeScript reference): http://127.0.0.1:${port}`));
 server.on("error", (e) => {
   console.error(e.message);
   process.exitCode = 1;

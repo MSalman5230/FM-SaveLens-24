@@ -1,0 +1,37 @@
+app-id: io.github.MSalman5230.FMSaveLens24
+runtime: org.gnome.Platform
+runtime-version: '50'
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: fm-savelens-24
+# Ubuntu 22.04's builder calls the retired appstream-compose command. GNOME 50
+# provides appstreamcli compose, which we invoke explicitly during cleanup.
+appstream-compose: false
+cleanup-commands:
+  - appstreamcli compose --no-net --prefix=/ --origin=fm-savelens-24 --result-root=/app --data-dir=/app/share/app-info/xmls --icons-dir=/app/share/app-info/icons/flatpak /app
+finish-args:
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  - --share=ipc
+  - --share=network
+  - --filesystem=home:ro
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin
+  env:
+    CARGO_HOME: /run/build/fm-savelens-24/cargo-home
+modules:
+  - name: fm-savelens-24
+    buildsystem: simple
+    sources:
+      - type: dir
+        path: stage/flatpak-source
+    build-commands:
+      - cargo build --release --offline --locked -p fm-savelens-backend
+      - cargo build --release --offline --locked -p fm-savelens-24
+      - install -Dm755 target/release/fm-savelens-24 /app/bin/fm-savelens-24
+      - install -Dm755 target/release/fm-savelens-24-server /app/bin/fm-savelens-24-server
+      - install -Dm644 fm-savelens.desktop /app/share/applications/io.github.MSalman5230.FMSaveLens24.desktop
+      - install -Dm644 fm-savelens.metainfo.xml /app/share/metainfo/io.github.MSalman5230.FMSaveLens24.metainfo.xml
+      - install -Dm644 src-tauri/icons/128x128@2x.png /app/share/icons/hicolor/256x256/apps/io.github.MSalman5230.FMSaveLens24.png

@@ -1,0 +1,517 @@
+{
+  "attributes": [
+    {
+      "key": "crossing",
+      "label": "Crossing",
+      "group": "Technical",
+      "index": 0,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "dribbling",
+      "label": "Dribbling",
+      "group": "Technical",
+      "index": 1,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "finishing",
+      "label": "Finishing",
+      "group": "Technical",
+      "index": 2,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "heading",
+      "label": "Heading",
+      "group": "Technical",
+      "index": 3,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "longShots",
+      "label": "Long shots",
+      "group": "Technical",
+      "index": 4,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "marking",
+      "label": "Marking",
+      "group": "Technical",
+      "index": 5,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "offTheBall",
+      "label": "Off the ball",
+      "group": "Mental",
+      "index": 6,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "passing",
+      "label": "Passing",
+      "group": "Technical",
+      "index": 7,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "penaltyTaking",
+      "label": "Penalty taking",
+      "group": "Technical",
+      "index": 8,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "tackling",
+      "label": "Tackling",
+      "group": "Technical",
+      "index": 9,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "vision",
+      "label": "Vision",
+      "group": "Mental",
+      "index": 10,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "handling",
+      "label": "Handling",
+      "group": "Goalkeeping",
+      "index": 11,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "aerialReach",
+      "label": "Aerial reach",
+      "group": "Goalkeeping",
+      "index": 12,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "commandOfArea",
+      "label": "Command of area",
+      "group": "Goalkeeping",
+      "index": 13,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "communication",
+      "label": "Communication",
+      "group": "Goalkeeping",
+      "index": 14,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "kicking",
+      "label": "Kicking",
+      "group": "Goalkeeping",
+      "index": 15,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "throwing",
+      "label": "Throwing",
+      "group": "Goalkeeping",
+      "index": 16,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "anticipation",
+      "label": "Anticipation",
+      "group": "Mental",
+      "index": 17,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "decisions",
+      "label": "Decisions",
+      "group": "Mental",
+      "index": 18,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "oneOnOnes",
+      "label": "One on ones",
+      "group": "Goalkeeping",
+      "index": 19,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "positioning",
+      "label": "Positioning",
+      "group": "Mental",
+      "index": 20,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "reflexes",
+      "label": "Reflexes",
+      "group": "Goalkeeping",
+      "index": 21,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "firstTouch",
+      "label": "First touch",
+      "group": "Technical",
+      "index": 22,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "technique",
+      "label": "Technique",
+      "group": "Technical",
+      "index": 23,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "leftFoot",
+      "label": "Left foot",
+      "group": "Feet",
+      "index": 24,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "rightFoot",
+      "label": "Right foot",
+      "group": "Feet",
+      "index": 25,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "flair",
+      "label": "Flair",
+      "group": "Mental",
+      "index": 26,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "corners",
+      "label": "Corners",
+      "group": "Technical",
+      "index": 27,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "teamwork",
+      "label": "Teamwork",
+      "group": "Mental",
+      "index": 28,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "workRate",
+      "label": "Work rate",
+      "group": "Mental",
+      "index": 29,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "longThrows",
+      "label": "Long throws",
+      "group": "Technical",
+      "index": 30,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "eccentricity",
+      "label": "Eccentricity",
+      "group": "Goalkeeping",
+      "index": 31,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "rushingOut",
+      "label": "Rushing out tendency",
+      "group": "Goalkeeping",
+      "index": 32,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "punching",
+      "label": "Punching tendency",
+      "group": "Goalkeeping",
+      "index": 33,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "acceleration",
+      "label": "Acceleration",
+      "group": "Physical",
+      "index": 34,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "freeKickTaking",
+      "label": "Free kick taking",
+      "group": "Technical",
+      "index": 35,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "strength",
+      "label": "Strength",
+      "group": "Physical",
+      "index": 36,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "stamina",
+      "label": "Stamina",
+      "group": "Physical",
+      "index": 37,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "pace",
+      "label": "Pace",
+      "group": "Physical",
+      "index": 38,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "jumpingReach",
+      "label": "Jumping reach",
+      "group": "Physical",
+      "index": 39,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "leadership",
+      "label": "Leadership",
+      "group": "Mental",
+      "index": 40,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "dirtiness",
+      "label": "Dirtiness",
+      "group": "Hidden",
+      "index": 41,
+      "scale": 5,
+      "inverted": true
+    },
+    {
+      "key": "balance",
+      "label": "Balance",
+      "group": "Physical",
+      "index": 42,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "bravery",
+      "label": "Bravery",
+      "group": "Mental",
+      "index": 43,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "consistency",
+      "label": "Consistency",
+      "group": "Hidden",
+      "index": 44,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "aggression",
+      "label": "Aggression",
+      "group": "Mental",
+      "index": 45,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "agility",
+      "label": "Agility",
+      "group": "Physical",
+      "index": 46,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "importantMatches",
+      "label": "Important matches",
+      "group": "Hidden",
+      "index": 47,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "injuryProneness",
+      "label": "Injury proneness",
+      "group": "Hidden",
+      "index": 48,
+      "scale": 5,
+      "inverted": true
+    },
+    {
+      "key": "versatility",
+      "label": "Versatility",
+      "group": "Hidden",
+      "index": 49,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "naturalFitness",
+      "label": "Natural fitness",
+      "group": "Physical",
+      "index": 50,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "determination",
+      "label": "Determination",
+      "group": "Mental",
+      "index": 51,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "composure",
+      "label": "Composure",
+      "group": "Mental",
+      "index": 52,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "concentration",
+      "label": "Concentration",
+      "group": "Mental",
+      "index": 53,
+      "scale": 5,
+      "inverted": false
+    },
+    {
+      "key": "adaptability",
+      "label": "Adaptability",
+      "group": "Hidden",
+      "index": 54,
+      "scale": 1,
+      "inverted": false
+    },
+    {
+      "key": "ambition",
+      "label": "Ambition",
+      "group": "Hidden",
+      "index": 55,
+      "scale": 1,
+      "inverted": false
+    },
+    {
+      "key": "loyalty",
+      "label": "Loyalty",
+      "group": "Hidden",
+      "index": 56,
+      "scale": 1,
+      "inverted": false
+    },
+    {
+      "key": "pressure",
+      "label": "Pressure",
+      "group": "Hidden",
+      "index": 57,
+      "scale": 1,
+      "inverted": false
+    },
+    {
+      "key": "professionalism",
+      "label": "Professionalism",
+      "group": "Hidden",
+      "index": 58,
+      "scale": 1,
+      "inverted": false
+    },
+    {
+      "key": "sportsmanship",
+      "label": "Sportsmanship",
+      "group": "Hidden",
+      "index": 59,
+      "scale": 1,
+      "inverted": false
+    },
+    {
+      "key": "temperament",
+      "label": "Temperament",
+      "group": "Hidden",
+      "index": 60,
+      "scale": 1,
+      "inverted": false
+    },
+    {
+      "key": "controversy",
+      "label": "Controversy",
+      "group": "Hidden",
+      "index": 61,
+      "scale": 1,
+      "inverted": true
+    }
+  ],
+  "positions": [
+    "GK",
+    "SW",
+    "DL",
+    "DC",
+    "DR",
+    "DM",
+    "ML",
+    "MC",
+    "MR",
+    "AML",
+    "AMC",
+    "AMR",
+    "ST",
+    "WBL",
+    "WBR"
+  ]
+}

@@ -1,0 +1,5 @@
+{
+  "bundle": {
+    "resources": { "../target/release/fm-savelens-24-server": "fm-savelens-24-server" }
+  }
+}
