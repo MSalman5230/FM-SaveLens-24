@@ -1,0 +1,41 @@
+import {readFileSync,writeFileSync,copyFileSync}from'node:fs';import assert from'node:assert/strict';import{PARSER_VERSION}from'../server/parser/index.ts';
+const rows=JSON.parse(readFileSync('.cache/collection-report.json','utf8'));const supported=rows.filter((r:any)=>!r.error),benchmark=JSON.parse(readFileSync('.cache/import-benchmark.json','utf8'));
+assert.equal(rows.length,62);assert.equal(supported.length,61);for(const r of rows){assert.equal(r.parserVersion,PARSER_VERSION);assert.equal(r.unchanged,true);if(!r.error){assert.equal(r.players,r.abilityBlocks);assert.equal(r.ambiguous,0);assert.equal(r.unbound,0);}}
+copyFileSync('.cache/collection-report.json','docs/collection-results.json');copyFileSync('.cache/import-benchmark.json','docs/import-benchmark.json');
+const lines=[
+'# Validation results',
+'',`Validated on this Windows PC, 5 September 2026 (local time). Parser: **${PARSER_VERSION}**.`,
+'','## Real saves','',
+'- 62 source saves checked. All 61 FM24 saves parsed successfully: 53 uncompressed and 8 compressed.',
+'- The remaining compressed FM23 save (`Masood Salman - Leeds FM23.fm`, internal format `23.4.0+0`) produced the expected unsupported-version error.',
+'- Every detected player attribute block in all 61 supported saves resolved to an unambiguous player identity. No excluded/ambiguous player blocks remained.',
+'- Each file was SHA-256 hashed before and after reading. **All 62 source files were unchanged.**',
+'- Save dates span 3 July 2023 to 4 March 2054. Coverage includes generated players, edited-database source IDs, single-name players, duplicate names, accents, goalkeepers, and long careers.',
+'- The final collection run used three isolated validation processes. The application itself permits only one import worker at a time. Per-file parser times in the attached JSON include contention during that validation run.',
+'','## Independent references','',
+'- `Salford - Masood.fm`: **67,547 players**.',
+'- All 18 screenshot rows matched names (using the saved full name for the shortened Enol), ages, CA/PA, clubs, primary nationalities, and visible secondary nationalities.',
+'- All 14 readable attribute columns matched across those rows: **252 attribute comparisons**.',
+'- Both supplied FMRTE exports matched **all 62 attributes each**: another **124 attribute comparisons**. Public IDs, CA/PA, birth dates, and all 14 exported position ratings also matched.',
+'- The two screenshot players with CA/PA 200 were verified. The JSON reference players were Aaron Nattermann and Abu Suleiman.',
+'','## Import performance','',
+`Measured on the largest save, **${benchmark.file}** (${(benchmark.size/1e9).toFixed(3)} GB):`,
+'',
+`- ${benchmark.job.playerCount.toLocaleString('en-US')} players imported and indexed in SQLite.`,
+`- Worker import plus cache creation: **${(benchmark.job.elapsedMs/1000).toFixed(2)} seconds**; request-to-completion observation: ${(benchmark.wallMs/1000).toFixed(2)} seconds.`,
+`- Peak resident memory reported by Node for the app process: **${(benchmark.job.peakRssBytes/1048576).toFixed(0)} MiB**.`,
+`- Slowest health request while importing: **${benchmark.maxHealthMs.toFixed(2)} ms**.`,
+`- Slowest combined-filter search of an existing cached save during import: **${benchmark.maxSearchMs.toFixed(1)} ms**.`,
+'- Results depend on disk cache, antivirus activity, hardware, and save size; these are measured observations, not guarantees.',
+'','## Application checks','',
+'- Automated tests: reference extraction; edited single-name players; truncated files and unsupported name tables; missing clubs; concurrent import rejection; cancellation; files changing before/during import; stale caches; literal search wildcards; accent-insensitive name searches; combined age/ability/position/attribute filters; sorting and non-overlapping pagination; invalid query values; missing player IDs; local-origin restrictions.',
+'- Browser checks against the production build: save discovery with size/date/status, typing in save and club pickers, combined club/PA/hidden-attribute filtering, reset, pagination, ascending/descending name sorting, goalkeeper/outfield profiles, import cancellation, and cached-save loading.',
+'- Browser tool checks: both tools registered; valid calls updated the table/profile; out-of-range potential and nonexistent player IDs failed without corrupting the interface.',
+'- `npm test`, `npm --prefix web run lint`, and `npm run build` passed. TypeScript checks run as part of the configured type-aware lint; a standalone frontend type check also passed.',
+'- Windows launcher start, stop, repeated start, and HTTP health were exercised. The production static assets were loaded in the browser on port 4242.',
+'','## Scope of verification','',
+'Independent screenshots/exports validate the supplied reference players. Structural collection checks validate ownership and consistency across all detected records; they do not constitute an independent manual comparison of every player. Unknown club links stay unavailable, unsupported layouts fail explicitly, and unverified nonrequested fields are not exposed.',
+'','Detailed results: [collection-results.json](collection-results.json), [import-benchmark.json](import-benchmark.json).',
+'', '| Save | Players | Game date | Compression | Source unchanged |', '| --- | ---: | --- | --- | --- |',
+...rows.map((r:any)=>`| ${r.file} | ${r.error?'Unsupported FM23':r.players.toLocaleString('en-US')} | ${r.gameDate??'—'} | ${r.compressed?'Zstandard':'Plain'} | Yes |`),''];
+writeFileSync('docs/VALIDATION.md',lines.join('\n'));console.log(`Recorded ${supported.length} supported saves; all source hashes unchanged.`);

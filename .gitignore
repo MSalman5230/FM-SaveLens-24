@@ -1,0 +1,10 @@
+node_modules/
+.cache/
+data/
+research/output/
+*.log
+*.sqlite*
+web/dist/
+web/.vinext/
+web/.next/
+*.tsbuildinfo

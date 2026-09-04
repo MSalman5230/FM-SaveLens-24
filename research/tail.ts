@@ -1,0 +1,2 @@
+import {SaveArchive}from'../server/parser/archive.ts';import{readNames}from'../server/parser/strings.ts';import{readPeople,readAbilities}from'../server/parser/people.ts';
+const a=new SaveArchive(process.argv[2]),b=a.member('game_db.dat');a.close();const n=readNames(b),p=readPeople(b,n),blocks=readAbilities(b,n.end);console.log({maxId:b.readUInt32LE(n.end),length:b.length,lastPeople:p.slice(-3),tailBlocks:blocks.filter(a=>a.offset>(p.at(-1)?.offset??0)).map(a=>({...a,head:b.subarray(a.offset+54,a.offset+170).toString('hex')}))});

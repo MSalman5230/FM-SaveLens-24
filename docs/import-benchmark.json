@@ -1,0 +1,19 @@
+{
+  "file": "Salford - EU Realism Mod - Masood (v03).fm",
+  "size": 1283965539,
+  "wallMs": 7515,
+  "maxHealthMs": 1.081799999999987,
+  "maxSearchMs": 156.43749999999997,
+  "job": {
+    "id": "13703041-378c-4c0d-9b50-f58f5f84b0bc",
+    "saveId": "fd166bdf537244ea33b53d6a6408d8e33db3cf80ffcce8c29662a140d36c77dd",
+    "snapshotId": "97facbcc8242cf0c6614b68ec59aafa0557cbb8e98ff66fdca999b320ffd6eb8",
+    "status": "complete",
+    "progress": 100,
+    "message": "Ready",
+    "startedAt": "2026-09-04T20:52:47.484Z",
+    "playerCount": 68965,
+    "elapsedMs": 7300,
+    "peakRssBytes": 810586112
+  }
+}

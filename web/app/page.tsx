@@ -1,0 +1,1136 @@
+"use client";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { flushSync } from "react-dom";
+import {
+  Search,
+  ScanLine,
+  FolderOpen,
+  Settings2,
+  ArrowDown,
+  ArrowUp,
+  ChevronLeft,
+  ChevronRight,
+  RefreshCw,
+  X,
+  Plus,
+  SlidersHorizontal,
+  Database,
+  LoaderCircle,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
+import {
+  Combobox,
+  ComboboxInput,
+  ComboboxContent,
+  ComboboxList,
+  ComboboxItem,
+  ComboboxEmpty,
+} from "@/components/ui/combobox";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
+import { Progress, ProgressLabel, ProgressValue } from "@/components/ui/progress";
+import { Pagination, PaginationContent, PaginationItem } from "@/components/ui/pagination";
+import { api, date, size } from "@/lib/scout-api";
+import type {
+  Attribute,
+  Option,
+  SaveFile,
+  Job,
+  Snapshot,
+  Player,
+  Detail,
+  Results,
+} from "@/lib/scout-api";
+
+function Picker({
+  label,
+  options,
+  value,
+  onChange,
+  placeholder = "Any",
+  disabled = false,
+}: {
+  label: string;
+  options: Option[];
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  disabled?: boolean;
+}) {
+  const [text, setText] = useState("");
+  const selected = options.find((o) => o.value === value) ?? null;
+  const filtered = useMemo(
+    () =>
+      options
+        .filter(
+          (o) =>
+            text === selected?.label ||
+            o.label.toLocaleLowerCase().includes(text.toLocaleLowerCase()),
+        )
+        .slice(0, 100),
+    [options, text, selected?.label],
+  );
+  return (
+    <Combobox
+      items={filtered}
+      value={selected}
+      onValueChange={(v) => onChange(v?.value ?? "")}
+      onInputValueChange={setText}
+      itemToStringLabel={(o) => o.label}
+      isItemEqualToValue={(a, b) => a.value === b.value}
+      filter={null}
+      disabled={disabled}
+    >
+      <ComboboxInput
+        id={label.replace(/\W/g, "-").toLowerCase()}
+        aria-label={label}
+        placeholder={placeholder}
+        showClear={!!value}
+      />
+      <ComboboxContent>
+        <ComboboxEmpty>No matches</ComboboxEmpty>
+        <ComboboxList>
+          {(o: Option) => (
+            <ComboboxItem key={o.value} value={o}>
+              <span className="picker-option">
+                {o.label}
+                {o.description && <small>{o.description}</small>}
+              </span>
+            </ComboboxItem>
+          )}
+        </ComboboxList>
+      </ComboboxContent>
+    </Combobox>
+  );
+}
+function Choice({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: Option[];
+  onChange: (value: string) => void;
+}) {
+  return (
+    <Select items={options} value={value} onValueChange={(v) => onChange(v ?? "")}>
+      <SelectTrigger id={label.replace(/\W/g, "-").toLowerCase()} aria-label={label}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent alignItemWithTrigger={false}>
+        {options.map((o) => (
+          <SelectItem key={o.value} value={o.value}>
+            {o.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+const groups = ["Technical", "Mental", "Physical", "Goalkeeping", "Feet", "Hidden"];
+const defaultFilters: Record<string, string> = {
+  q: "",
+  club: "",
+  nation: "",
+  position: "",
+  ageMin: "",
+  ageMax: "",
+  caMin: "",
+  caMax: "",
+  paMin: "",
+  paMax: "",
+};
+const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
+function ratingClass(v: number | null | undefined) {
+  return v == null
+    ? "rating unavailable"
+    : v >= 16
+      ? "rating excellent"
+      : v >= 11
+        ? "rating good"
+        : "rating";
+}
+
+export default function Home() {
+  const [saves, setSaves] = useState<SaveFile[]>([]),
+    [selected, setSelected] = useState(""),
+    [folder, setFolder] = useState("");
+  const [attributes, setAttributes] = useState<Attribute[]>([]),
+    [positions, setPositions] = useState<string[]>([]);
+  const [snapshot, setSnapshot] = useState<Snapshot | null>(null),
+    [job, setJob] = useState<Job | null>(null),
+    [starting, setStarting] = useState(false);
+  const [error, setError] = useState(""),
+    [notice, setNotice] = useState(""),
+    [initializing, setInitializing] = useState(true);
+  const [settingsOpen, setSettingsOpen] = useState(false),
+    [folderDraft, setFolderDraft] = useState(""),
+    [folderError, setFolderError] = useState(""),
+    [savingFolder, setSavingFolder] = useState(false);
+  const [filters, setFilters] = useState(defaultFilters),
+    [sort, setSort] = useState("pa"),
+    [direction, setDirection] = useState("desc"),
+    [page, setPage] = useState(1),
+    [limit, setLimit] = useState("50");
+  const [result, setResult] = useState<Results | null>(null),
+    [searching, setSearching] = useState(false),
+    [searchError, setSearchError] = useState("");
+  const [attributeKey, setAttributeKey] = useState(""),
+    [attributeMin, setAttributeMin] = useState("15");
+  const [detailId, setDetailId] = useState<number | null>(null),
+    [detail, setDetail] = useState<Detail | null>(null),
+    [detailError, setDetailError] = useState("");
+  const jobId = job?.id,
+    jobStatus = job?.status,
+    snapshotId = snapshot?.snapshotId;
+  const running = jobStatus === "running";
+  const chosen = saves.find((s) => s.id === selected);
+  const refresh = useCallback(async (preferSnapshot?: string) => {
+    const list = await api<{ saves: SaveFile[] }>("/saves");
+    setSaves(list.saves);
+    setSelected((old) =>
+      list.saves.some((s) => s.id === old)
+        ? old
+        : ((
+            list.saves.find((s) => s.snapshotId === preferSnapshot) ??
+            list.saves.find((s) => s.name === "Salford - Masood.fm") ??
+            list.saves[0]
+          )?.id ?? ""),
+    );
+  }, []);
+  const loadSnapshot = useCallback(async (id: string) => {
+    const meta = await api<Snapshot>("/snapshots/" + id);
+    setSnapshot(meta);
+    setDetailId(null);
+    setPage(1);
+  }, []);
+  useEffect(() => {
+    let live = true;
+    void (async () => {
+      try {
+        const [settings, catalog] = await Promise.all([
+          api<{ folder: string; lastSnapshot?: string; activeJob: Job | null }>("/settings"),
+          api<{ attributes: Attribute[]; positions: string[] }>("/attributes"),
+        ]);
+        if (!live) return;
+        setFolder(settings.folder);
+        setAttributes(catalog.attributes);
+        setPositions(catalog.positions);
+        setJob(settings.activeJob);
+        await refresh(settings.lastSnapshot);
+        if (settings.lastSnapshot) await loadSnapshot(settings.lastSnapshot);
+      } catch (e) {
+        if (live) setError(errorText(e));
+      } finally {
+        if (live) setInitializing(false);
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [refresh, loadSnapshot]);
+  useEffect(() => {
+    if (!jobId || jobStatus !== "running") return;
+    let cancelled = false,
+      timer: ReturnType<typeof setTimeout>;
+    const poll = async () => {
+      try {
+        const next = await api<Job>("/imports/" + jobId);
+        if (cancelled) return;
+        setJob(next);
+        if (next.status === "complete") {
+          await loadSnapshot(next.snapshotId);
+          await refresh(next.snapshotId);
+          setNotice("Save loaded. Player ratings are ready.");
+        } else if (next.status === "error") setError(next.message);
+        else if (next.status === "running") timer = setTimeout(poll, 450);
+      } catch (e) {
+        if (!cancelled) {
+          setError(errorText(e));
+          timer = setTimeout(poll, 2000);
+        }
+      }
+    };
+    timer = setTimeout(poll, 350);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [jobId, jobStatus, loadSnapshot, refresh]);
+  // Recheck the source when returning to the app after playing or saving in FM.
+  useEffect(() => {
+    if (!snapshotId) return;
+    const check = () => {
+      void api<Snapshot>("/snapshots/" + snapshotId)
+        .then((m) => setSnapshot(m))
+        .catch(() => {});
+      void refresh().catch(() => {});
+    };
+    window.addEventListener("focus", check);
+    return () => window.removeEventListener("focus", check);
+  }, [snapshotId, refresh]);
+  const query = useMemo(() => {
+    const p = new URLSearchParams({ sort, direction, page: String(page), limit });
+    for (const [key, value] of Object.entries(filters)) if (value) p.set(key, value);
+    return p.toString();
+  }, [filters, sort, direction, page, limit]);
+  // Remote request state must reset whenever a new search starts.
+  // oxlint-disable-next-line react/react-compiler
+  useEffect(() => {
+    if (!snapshotId) return;
+    const controller = new AbortController();
+    // oxlint-disable-next-line react/react-compiler -- reset state for this remote request
+    setSearching(true);
+    setSearchError("");
+    const timer = setTimeout(() => {
+      api<Results>(`/snapshots/${snapshotId}/players?${query}`, { signal: controller.signal })
+        .then(setResult)
+        .catch((e) => {
+          if (!controller.signal.aborted) {
+            setSearchError(errorText(e));
+            setResult(null);
+          }
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setSearching(false);
+        });
+    }, 200);
+    return () => {
+      controller.abort();
+      clearTimeout(timer);
+    };
+  }, [snapshotId, query]);
+  // Clear the previous player's remote data before requesting another identity.
+  // oxlint-disable-next-line react/react-compiler
+  useEffect(() => {
+    // oxlint-disable-next-line react/react-compiler -- prevent displaying the previous identity
+    setDetail(null);
+    setDetailError("");
+    if (detailId === null || !snapshotId) return;
+    const c = new AbortController();
+    void api<Detail>(`/snapshots/${snapshotId}/players/${detailId}`, { signal: c.signal })
+      .then(setDetail)
+      .catch((e) => {
+        if (!c.signal.aborted) setDetailError(errorText(e));
+      });
+    return () => c.abort();
+  }, [detailId, snapshotId]);
+  const updateFilter = (key: string, value: string) => {
+    setFilters((f) => ({ ...f, [key]: value }));
+    setPage(1);
+  };
+  const clearFilters = () => {
+    setFilters({ ...defaultFilters });
+    setPage(1);
+  };
+  async function importSave() {
+    if (!selected) return;
+    setStarting(true);
+    setError("");
+    setNotice("");
+    try {
+      const next = await api<Job>("/imports", {
+        method: "POST",
+        body: JSON.stringify({ saveId: selected }),
+      });
+      setJob(next);
+      if (next.status === "complete") {
+        await loadSnapshot(next.snapshotId);
+        await refresh(next.snapshotId);
+        setNotice("Loaded from your local cache.");
+      }
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setStarting(false);
+    }
+  }
+  async function cancelImport() {
+    if (!job) return;
+    try {
+      const next = await api<Job>("/imports/" + job.id, { method: "DELETE" });
+      setJob(next);
+      if (next.status === "complete") await loadSnapshot(next.snapshotId);
+      else setNotice("Import cancelled.");
+    } catch (e) {
+      setError(errorText(e));
+    }
+  }
+  async function saveFolder() {
+    setSavingFolder(true);
+    setFolderError("");
+    try {
+      const settings = await api<{ folder: string }>("/settings", {
+        method: "PUT",
+        body: JSON.stringify({ folder: folderDraft }),
+      });
+      setFolder(settings.folder);
+      setSnapshot(null);
+      setResult(null);
+      setJob(null);
+      clearFilters();
+      await refresh();
+      setSettingsOpen(false);
+      setError("");
+      setNotice("Save folder updated.");
+    } catch (e) {
+      setFolderError(errorText(e));
+    } finally {
+      setSavingFolder(false);
+    }
+  }
+  const clubOptions = useMemo(
+    () => [
+      { value: "-1", label: "Club unavailable" },
+      ...(snapshot?.clubs ?? []).map((c) => ({ value: String(c.id), label: c.name })),
+    ],
+    [snapshot?.clubs],
+  );
+  const nationOptions = useMemo(
+    () => (snapshot?.nations ?? []).map((c) => ({ value: String(c.id), label: c.name })),
+    [snapshot?.nations],
+  );
+  const attrOptions = useMemo(
+    () =>
+      attributes
+        .map((a) => ({ value: a.key, label: a.label }))
+        .sort((a, b) => a.label.localeCompare(b.label)),
+    [attributes],
+  );
+  const saveOptions = useMemo(
+    () =>
+      saves.map((s) => ({
+        value: s.id,
+        label: s.name,
+        description: `${size(s.size)} · ${date(s.modified)} · ${s.cached ? "Cached" : "Not imported"}`,
+      })),
+    [saves],
+  );
+  const attrFilters = Object.entries(filters).filter(([k, v]) => k.startsWith("attr_") && v);
+  const activeFilters = Object.values(filters).filter(Boolean).length;
+  function changeSort(key: string) {
+    setSort(key);
+    setDirection(
+      sort === key
+        ? direction === "desc"
+          ? "asc"
+          : "desc"
+        : key === "name" || key === "club"
+          ? "asc"
+          : "desc",
+    );
+    setPage(1);
+  }
+  const pages = Math.max(1, Math.ceil((result?.total ?? 0) / Number(limit)));
+  // Progressive enhancement: browser agents use the same filters and player panel as people.
+  useEffect(() => {
+    type Tool = {
+      name: string;
+      description: string;
+      inputSchema: unknown;
+      annotations: {readOnlyHint:boolean;untrustedContentHint:boolean};
+      execute: (args: Record<string, unknown>) => Promise<unknown>;
+    };
+    const context = (
+      document as Document & {
+        modelContext?: { registerTool: (t: Tool, options:{signal:AbortSignal}) => void|Promise<void> };
+      }
+    ).modelContext;
+    if (!context || !snapshotId) return;
+    const lifecycle=new AbortController();
+    const register=(tool:Tool)=>{try{void Promise.resolve(context.registerTool(tool,{signal:lifecycle.signal})).catch(e=>console.warn('Browser tool registration failed',e));}catch(e){console.warn('Browser tool registration failed',e);}};
+    register({
+      name: "search_players",
+      annotations:{readOnlyHint:false,untrustedContentHint:true},
+      description:
+        "Search players in the loaded FM24 save and apply the same filters to the visible table.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          minimumPotential: { type: "integer", minimum: 1, maximum: 200 },
+        },
+        additionalProperties: false,
+      },
+      execute: async (args) => {
+        const q = typeof args.name === "string" ? args.name.slice(0, 200) : "";
+        const pa = Number(args.minimumPotential ?? 1);
+        if (!Number.isInteger(pa) || pa < 1 || pa > 200)
+          throw new Error("Potential must be 1–200.");
+        const found=await api<Results>(
+          `/snapshots/${snapshotId}/players?` +
+            new URLSearchParams({ q, paMin: String(pa), limit: "50" }),
+        );
+        flushSync(()=>{setFilters({ ...defaultFilters, q, paMin: String(pa) });setSort('pa');setDirection('desc');setPage(1);setLimit('50');setResult(found);});
+        return found;
+      },
+    });
+    register({
+      name: "open_player",
+      annotations:{readOnlyHint:false,untrustedContentHint:true},
+      description: "Open a player by entity ID from the currently loaded save.",
+      inputSchema: {
+        type: "object",
+        properties: { playerId: { type: "integer", minimum: 0 } },
+        required: ["playerId"],
+        additionalProperties: false,
+      },
+      execute: async (args) => {
+        const id = Number(args.playerId);
+        if (!Number.isInteger(id) || id < 0) throw new Error("Invalid player ID.");
+        const p = await api<Detail>(`/snapshots/${snapshotId}/players/${id}`);
+        flushSync(()=>setDetailId(p.id));
+        return {id:p.id,name:p.name,status:'opened'};
+      },
+    });
+    return () => {
+      lifecycle.abort();
+    };
+  }, [snapshotId]);
+
+  return (
+    <main className="scout-app">
+      <header className="masthead">
+        <div className="brand">
+          <ScanLine size={26} />
+          <strong>
+            FM<span>SCOUT</span>
+          </strong>
+          <b>24</b>
+        </div>
+        <div className="header-actions">
+          <span className="local-status">
+            <i /> Local workspace
+          </span>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setFolderDraft(folder);
+              setFolderError("");
+              setSettingsOpen(true);
+            }}
+          >
+            <Settings2 size={16} />
+            Settings
+          </Button>
+        </div>
+      </header>
+      <section className="workspace-heading">
+        <div>
+          <div className="eyebrow">FOOTBALL MANAGER 2024</div>
+          <h1>Find your next difference-maker.</h1>
+        </div>
+        {snapshot && (
+          <div className="save-date">
+            <span className="eyebrow">IN-GAME DATE</span>
+            <strong>{date(snapshot.gameDate)}</strong>
+          </div>
+        )}
+      </section>
+      <section className="save-bar" aria-label="Save library">
+        <FolderOpen size={23} />
+        <div className="save-choice">
+          <label className="muted" htmlFor="save-game">
+            Save game
+          </label>
+          <Picker
+            label="Save game"
+            options={saveOptions}
+            value={selected}
+            onChange={setSelected}
+            placeholder={initializing ? "Finding saves…" : "Choose a save"}
+            disabled={running}
+          />
+        </div>
+        <div className="file-meta">
+          {chosen ? (
+            <>
+              <strong>
+                {size(chosen.size)} <span>·</span> {date(chosen.modified)}
+              </strong>
+              <span className={chosen.cached ? "cached" : "muted"}>
+                {chosen.cached ? "Cached · ready to open" : "Not imported"}
+              </span>
+            </>
+          ) : (
+            <span className="muted">{saves.length ? "Choose a save file" : "No saves found"}</span>
+          )}
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Refresh saves"
+          disabled={running}
+          onClick={() => {
+            setError("");
+            void refresh().catch((e) => setError(errorText(e)));
+          }}
+        >
+          <RefreshCw size={17} />
+        </Button>
+        <Button disabled={!chosen || running || starting} onClick={() => void importSave()}>
+          {starting ? <LoaderCircle className="spin" size={16} /> : <Database size={16} />}{" "}
+          {chosen?.cached ? "Open save" : "Read save"}
+        </Button>
+      </section>
+      {running && job && (
+        <section className="import-progress">
+          <Progress value={job.progress}>
+            <ProgressLabel>{job.message}</ProgressLabel>
+            <ProgressValue />
+          </Progress>
+          <Button variant="outline" onClick={() => void cancelImport()}>
+            Cancel import
+          </Button>
+        </section>
+      )}
+      {error && (
+        <div className="message error" role="alert">
+          {error}
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label="Dismiss error"
+            onClick={() => setError("")}
+          >
+            <X size={16} />
+          </Button>
+        </div>
+      )}
+      {notice && !error && <output className="notice">{notice}</output>}
+      {snapshot?.stale && (
+        <div className="message warning">
+          This snapshot is out of date. Read the save again to refresh its players.
+        </div>
+      )}
+      {snapshot?.warnings.map((w) => (
+        <div className="message warning" key={w}>
+          {w}
+        </div>
+      ))}
+      <section className="search-layout">
+        <aside className="filters">
+          <div className="filter-heading">
+            <span className="section-heading">
+              <SlidersHorizontal size={14} /> FILTERS
+            </span>
+            <Button variant="ghost" size="sm" onClick={clearFilters} disabled={!activeFilters}>
+              Reset
+            </Button>
+          </div>
+          <fieldset disabled={!snapshot}>
+            <label htmlFor="player-query">
+              Name or player ID
+              <div className="search-input">
+                <Search size={15} />
+                <Input
+                  id="player-query"
+                  aria-label="Name or player ID"
+                  value={filters.q}
+                  maxLength={200}
+                  onChange={(e) => updateFilter("q", e.target.value)}
+                  placeholder="Find a player…"
+                />
+              </div>
+            </label>
+            <div className="filter-field">
+              <label htmlFor="club">Club</label>
+              <Picker
+                label="Club"
+                options={clubOptions}
+                value={filters.club}
+                onChange={(v) => updateFilter("club", v)}
+                placeholder="All clubs"
+                disabled={!snapshot}
+              />
+            </div>
+            <div className="filter-field">
+              <label htmlFor="nationality">Nationality</label>
+              <Picker
+                label="Nationality"
+                options={nationOptions}
+                value={filters.nation}
+                onChange={(v) => updateFilter("nation", v)}
+                placeholder="All nationalities"
+                disabled={!snapshot}
+              />
+            </div>
+            <div className="filter-field">
+              <label htmlFor="position">Position</label>
+              <Choice
+                label="Position"
+                value={filters.position}
+                options={[
+                  { value: "", label: "All positions" },
+                  ...positions.map((p, i) => ({ value: String(i), label: p })),
+                ]}
+                onChange={(v) => updateFilter("position", v)}
+              />
+              <small>Accomplished or natural (15+)</small>
+            </div>
+            {[
+              ["age", "Age", 120],
+              ["ca", "Current ability", 200],
+              ["pa", "Potential ability", 200],
+            ].map(([key, label, max]) => (
+              <div className="range-field" key={key}>
+                <span className="filter-label">{label}</span>
+                <div className="range-inputs">
+                  <Input
+                    aria-label={`${label} minimum`}
+                    type="number"
+                    min={0}
+                    max={max}
+                    placeholder="Min"
+                    value={filters[key + "Min"]}
+                    onChange={(e) => updateFilter(key + "Min", e.target.value)}
+                  />
+                  <span>–</span>
+                  <Input
+                    aria-label={`${label} maximum`}
+                    type="number"
+                    min={0}
+                    max={max}
+                    placeholder="Max"
+                    value={filters[key + "Max"]}
+                    onChange={(e) => updateFilter(key + "Max", e.target.value)}
+                  />
+                </div>
+              </div>
+            ))}
+            <div className="attribute-filter">
+              <div className="section-heading">MINIMUM ATTRIBUTES</div>
+              <Picker
+                label="Attribute to filter"
+                options={attrOptions}
+                value={attributeKey}
+                onChange={setAttributeKey}
+                placeholder="Choose an attribute"
+                disabled={!snapshot}
+              />
+              <div className="attribute-add">
+                <Input
+                  aria-label="Minimum attribute rating"
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={attributeMin}
+                  onChange={(e) => setAttributeMin(e.target.value)}
+                />
+                <span className="muted">/ 20</span>
+                <Button
+                  variant="secondary"
+                  aria-label="Add attribute filter"
+                  disabled={
+                    !attributeKey ||
+                    !Number.isInteger(Number(attributeMin)) ||
+                    Number(attributeMin) < 1 ||
+                    Number(attributeMin) > 20
+                  }
+                  onClick={() => {
+                    updateFilter("attr_" + attributeKey, attributeMin);
+                    setAttributeKey("");
+                  }}
+                >
+                  <Plus size={15} />
+                  Add
+                </Button>
+              </div>
+              {attrFilters.map(([key, value]) => (
+                <div className="filter-chip" key={key}>
+                  <span>
+                    {attributes.find((a) => a.key === key.slice(5))?.label}{" "}
+                    <strong>≥ {value}</strong>
+                  </span>
+                  <Button
+                    size="icon-xs"
+                    variant="ghost"
+                    aria-label={`Remove ${attributes.find((a) => a.key === key.slice(5))?.label} filter`}
+                    onClick={() => updateFilter(key, "")}
+                  >
+                    <X size={13} />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </fieldset>
+          <p className="filter-note">
+            Selected filters work together. Ratings use the 1–20 scale; ability uses 1–200.
+          </p>
+        </aside>
+        <div className="results">
+          <div className="results-heading">
+            <div>
+              <h2>
+                Players {result && <span className="count">{result.total.toLocaleString()}</span>}
+              </h2>
+              <p className="muted">
+                {snapshot
+                  ? `${snapshot.sourceName} · ${snapshot.playerCount.toLocaleString()} players indexed`
+                  : "Choose a save to explore its player database"}
+              </p>
+            </div>
+            <output className="search-status">
+              {searching && (
+                <>
+                  <LoaderCircle className="spin" size={14} /> Searching
+                </>
+              )}
+            </output>
+          </div>
+          {searchError ? (
+            <div className="message error" role="alert">
+              {searchError}
+            </div>
+          ) : (
+            <>
+              <div className="player-table" aria-busy={searching}>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      {[
+                        ["name", "Player"],
+                        ["age", "Age"],
+                        ["club", "Club"],
+                        ["", "Nationality"],
+                        ["", "Position"],
+                        ["ca", "CA"],
+                        ["pa", "PA"],
+                      ].map(([key, title]) => (
+                        <TableHead
+                          key={title}
+                          aria-sort={
+                            key && sort === key
+                              ? direction === "asc"
+                                ? "ascending"
+                                : "descending"
+                              : undefined
+                          }
+                        >
+                          {key ? (
+                            <button
+                              className="sort-button"
+                              onClick={() => changeSort(key)}
+                              aria-label={`Sort by ${title}`}
+                            >
+                              {title}
+                              {sort === key &&
+                                (direction === "asc" ? (
+                                  <ArrowUp size={13} />
+                                ) : (
+                                  <ArrowDown size={13} />
+                                ))}
+                            </button>
+                          ) : (
+                            title
+                          )}
+                        </TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {result?.players.map((p: Player) => (
+                      <TableRow key={p.id} onClick={() => setDetailId(p.id)} className="player-row">
+                        <TableCell>
+                          <button
+                            className="player-name"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDetailId(p.id);
+                            }}
+                          >
+                            {p.name}
+                          </button>
+                        </TableCell>
+                        <TableCell className="number">{p.age}</TableCell>
+                        <TableCell className={!p.club ? "muted" : ""}>
+                          {p.club ?? "Unavailable"}
+                        </TableCell>
+                        <TableCell>
+                          <span className="nationality" title={p.nationalities.join(" · ")}>
+                            {p.nationalities[0]}
+                            {p.nationalities.length > 1 && (
+                              <small> +{p.nationalities.length - 1}</small>
+                            )}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <span className="positions">
+                            {p.positions.join(", ") || "Unavailable"}
+                          </span>
+                        </TableCell>
+                        <TableCell className="number ca">{p.ca}</TableCell>
+                        <TableCell>
+                          <div className="potential">
+                            <strong>{p.pa}</strong>
+                            <span>
+                              <i style={{ width: `${p.pa / 2}%` }} />
+                            </span>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              {(!snapshot || !result?.players.length) && (
+                <div className="empty-state">
+                  {initializing || searching ? (
+                    <LoaderCircle className="spin" size={30} />
+                  ) : (
+                    <Search size={32} />
+                  )}
+                  <h3>
+                    {initializing
+                      ? "Opening your workspace…"
+                      : !snapshot
+                        ? "Your next signing starts here"
+                        : searching
+                          ? "Searching players…"
+                          : "No players match these filters"}
+                  </h3>
+                  <p>
+                    {!snapshot
+                      ? "Keep Football Manager closed, choose a save, then select Read save."
+                      : !searching
+                        ? "Try a wider ability range or remove an attribute filter."
+                        : ""}
+                  </p>
+                  {snapshot && !searching && (
+                    <Button variant="outline" onClick={clearFilters}>
+                      Reset filters
+                    </Button>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+          {snapshot && result && result.total > 0 && (
+            <div className="results-footer">
+              <span className="muted">
+                {((page - 1) * Number(limit) + 1).toLocaleString()}–
+                {Math.min(page * Number(limit), result.total).toLocaleString()} of{" "}
+                {result.total.toLocaleString()}
+              </span>
+              <div className="paging">
+                <Choice
+                  label="Players per page"
+                  value={limit}
+                  options={["25", "50", "100", "250"].map((n) => ({
+                    value: n,
+                    label: n + " / page",
+                  }))}
+                  onChange={(v) => {
+                    setLimit(v);
+                    setPage(1);
+                  }}
+                />
+                <Pagination>
+                  <PaginationContent>
+                    <PaginationItem>
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        aria-label="Previous page"
+                        disabled={page <= 1 || searching}
+                        onClick={() => setPage((p) => p - 1)}
+                      >
+                        <ChevronLeft size={16} />
+                      </Button>
+                    </PaginationItem>
+                    <PaginationItem>
+                      <span className="page-number">
+                        {page} / {pages}
+                      </span>
+                    </PaginationItem>
+                    <PaginationItem>
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        aria-label="Next page"
+                        disabled={page >= pages || searching}
+                        onClick={() => setPage((p) => p + 1)}
+                      >
+                        <ChevronRight size={16} />
+                      </Button>
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
+      <footer className="app-footer">
+        <span>
+          FM SCOUT 24 <span>·</span> Private, local scouting
+        </span>
+        <span>Save files are read only</span>
+      </footer>
+
+      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <DialogContent className="settings-dialog">
+          <DialogHeader>
+            <DialogTitle>Workspace settings</DialogTitle>
+            <DialogDescription>
+              Choose the folder containing your Football Manager 2024 saves.
+            </DialogDescription>
+          </DialogHeader>
+          <label className="settings-label" htmlFor="save-folder-path">
+            Save folder
+            <Input
+              id="save-folder-path"
+              aria-label="Save folder"
+              value={folderDraft}
+              onChange={(e) => setFolderDraft(e.target.value)}
+            />
+          </label>
+          <p className="muted">
+            Extracted data is cached locally in your Windows app data folder. No account or running
+            game is needed.
+          </p>
+          {folderError && (
+            <p className="error-text" role="alert">
+              {folderError}
+            </p>
+          )}
+          <Button
+            disabled={running || savingFolder || !folderDraft.trim()}
+            onClick={() => void saveFolder()}
+          >
+            {savingFolder ? "Saving…" : "Save folder"}
+          </Button>
+          {running && <p className="muted">Wait for the current import before changing folders.</p>}
+        </DialogContent>
+      </Dialog>
+      <Sheet
+        open={detailId !== null}
+        onOpenChange={(open) => {
+          if (!open) setDetailId(null);
+        }}
+      >
+        <SheetContent
+          className="player-sheet"
+          style={{ width: "min(830px, 100vw)", maxWidth: "none" }}
+        >
+          <SheetHeader>
+            <div className="eyebrow">PLAYER PROFILE</div>
+            <SheetTitle className="detail-name">{detail?.name ?? "Loading player…"}</SheetTitle>
+            <SheetDescription>
+              {detail
+                ? `${detail.club ?? "Club unavailable"} · ${detail.positions.join(", ")} · ${detail.age} years old`
+                : "Reading player details from your local snapshot."}
+            </SheetDescription>
+          </SheetHeader>
+          {detailError ? (
+            <div className="message error" role="alert">
+              {detailError}
+            </div>
+          ) : !detail ? (
+            <div className="empty-state">
+              <LoaderCircle className="spin" />
+            </div>
+          ) : (
+            <div className="detail-body">
+              <div className="detail-summary">
+                <div>
+                  <span>Current ability</span>
+                  <strong>
+                    {detail.ca}
+                    <small> / 200</small>
+                  </strong>
+                </div>
+                <div>
+                  <span>Potential ability</span>
+                  <strong className="lime">
+                    {detail.pa}
+                    <small> / 200</small>
+                  </strong>
+                </div>
+                <div>
+                  <span>Born</span>
+                  <b>{date(detail.birthDate)}</b>
+                  <span>{detail.nationalities.join(" · ")}</span>
+                </div>
+              </div>
+              <div className="detail-position">
+                <span>Positions</span>
+                {detail.positionRatings.map(
+                  (v, i) =>
+                    v >= 10 && (
+                      <span className="position-chip" key={i}>
+                        {positions[i]} <b>{v}</b>
+                      </span>
+                    ),
+                )}
+              </div>
+              <div className="attribute-groups">
+                {groups.map((group) => (
+                  <section className="attribute-group" key={group}>
+                    <h3>
+                      {group}
+                      <small> / 20</small>
+                    </h3>
+                    {attributes
+                      .filter((a) => a.group === group)
+                      .sort((a, b) => a.label.localeCompare(b.label))
+                      .map((a) => (
+                        <div className="attribute-row" key={a.key}>
+                          <span>
+                            {a.label}
+                            {a.inverted && (
+                              <small title="A lower value is generally preferable"> ↓</small>
+                            )}
+                          </span>
+                          <strong className={ratingClass(detail.attributes[a.key])}>
+                            {detail.attributes[a.key] ?? "—"}
+                          </strong>
+                        </div>
+                      ))}
+                  </section>
+                ))}
+              </div>
+              <p className="detail-note">
+                ↓ Lower is generally preferable. A dash means unavailable. Position ratings below 10
+                are omitted from this summary.
+              </p>
+              <p className="detail-id">
+                Player ID {detail.uid} <span>·</span> {snapshot?.sourceName}
+              </p>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
+    </main>
+  );
+}
