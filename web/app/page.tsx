@@ -6,8 +6,6 @@ import {
   Search,
   FolderOpen,
   Settings2,
-  ArrowDown,
-  ArrowUp,
   ChevronLeft,
   ChevronRight,
   RefreshCw,
@@ -19,14 +17,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import {
   Select,
   SelectTrigger,
@@ -60,15 +50,23 @@ import { Progress, ProgressLabel, ProgressValue } from "@/components/ui/progress
 import { Pagination, PaginationContent, PaginationItem } from "@/components/ui/pagination";
 import { api, date, size } from "@/lib/scout-api";
 import { watchSnapshotFocus } from "@/lib/focus-refresh";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { RoleRatings } from "@/components/role-ratings";
+import { playerQuery, roleLabel, selectRole } from "@/lib/role-ratings";
+import { PlayerColumnChooser } from "@/components/player-column-chooser";
+import { PlayerListTable } from "@/components/player-list-table";
+import { columnStorageKey, defaultColumns, normalizeColumns, playerColumns, restoreColumns, sortAfterColumns, visibleSort } from "@/lib/player-columns";
+import { currentValue, requestSnapshot, resourceKey } from "@/lib/snapshot-request";
+import type { ScopedValue } from "@/lib/snapshot-request";
 import type {
   Attribute,
   Option,
   SaveFile,
   Job,
   Snapshot,
-  Player,
   Detail,
   Results,
+  RoleCatalog,
 } from "@/lib/scout-api";
 
 function Picker({
@@ -164,6 +162,8 @@ const defaultFilters: Record<string, string> = {
   club: "",
   nation: "",
   position: "",
+  role: "",
+  roleMin: "",
   ageMin: "",
   ageMax: "",
   caMin: "",
@@ -188,6 +188,11 @@ export default function Home() {
     [folder, setFolder] = useState("");
   const [attributes, setAttributes] = useState<Attribute[]>([]),
     [positions, setPositions] = useState<string[]>([]);
+  const [roleCatalog, setRoleCatalog] = useState<RoleCatalog | null>(null);
+  const [columnIds, setColumnIds] = useState<string[]>(defaultColumns);
+  const availableColumns = useMemo(() => playerColumns(roleCatalog?.roles ?? []), [roleCatalog]);
+  const displayedColumns = useMemo(() => columnIds.flatMap(id => availableColumns.filter(column => column.id === id)), [columnIds, availableColumns]);
+  const displayedRoleIds = useMemo(() => displayedColumns.flatMap(column => column.roleId ? [column.roleId] : []).sort(), [displayedColumns]);
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null),
     [job, setJob] = useState<Job | null>(null),
     [starting, setStarting] = useState(false);
@@ -203,18 +208,21 @@ export default function Home() {
     [direction, setDirection] = useState("desc"),
     [page, setPage] = useState(1),
     [limit, setLimit] = useState("50");
-  const [result, setResult] = useState<Results | null>(null),
+  const [searchResponse, setSearchResponse] = useState<ScopedValue<Results> | null>(null),
     [searching, setSearching] = useState(false),
     [searchError, setSearchError] = useState("");
   const [attributeKey, setAttributeKey] = useState(""),
     [attributeMin, setAttributeMin] = useState("15");
   const [detailId, setDetailId] = useState<number | null>(null),
-    [detail, setDetail] = useState<Detail | null>(null),
+    [detailResponse, setDetailResponse] = useState<ScopedValue<Detail> | null>(null),
     [detailError, setDetailError] = useState("");
+  const [detailRole, setDetailRole] = useState("");
   const jobId = job?.id,
     jobStatus = job?.status,
     snapshotId = snapshot?.snapshotId;
   const running = jobStatus === "running";
+  const detailKey = resourceKey(snapshotId, detailId);
+  const detail = currentValue(detailResponse, detailKey);
   const chosen = saves.find((s) => s.id === selected);
   const applySaves = useCallback((files: SaveFile[], preferSnapshot?: string) => {
     setSaves(files);
@@ -241,9 +249,10 @@ export default function Home() {
     let live = true;
     void (async () => {
       try {
-        const [settings, catalog] = await Promise.all([
+        const [settings, catalog, roles] = await Promise.all([
           api<{ folder: string; lastSnapshot?: string; activeJob: Job | null }>("/settings"),
           api<{ attributes: Attribute[]; positions: string[] }>("/attributes"),
+          api<RoleCatalog>("/roles"),
         ]);
         if (!live) return;
         setFolder(settings.folder);
@@ -253,6 +262,9 @@ export default function Home() {
         }
         setAttributes(catalog.attributes);
         setPositions(catalog.positions);
+        setRoleCatalog(roles);
+        try { setColumnIds(restoreColumns(window.localStorage.getItem(columnStorageKey), playerColumns(roles.roles))); }
+        catch { /* The default view works when device storage is unavailable. */ }
         setJob(settings.activeJob);
         await refresh(settings.lastSnapshot);
         if (settings.lastSnapshot) await loadSnapshot(settings.lastSnapshot);
@@ -305,58 +317,67 @@ export default function Home() {
       setSaves: applySaves,
     });
   }, [snapshotId, applySaves]);
-  const query = useMemo(() => {
-    const p = new URLSearchParams({ sort, direction, page: String(page), limit });
-    for (const [key, value] of Object.entries(filters)) if (value) p.set(key, value);
-    return p.toString();
-  }, [filters, sort, direction, page, limit]);
+  const query = useMemo(() => playerQuery(filters, sort, direction, page, limit, displayedRoleIds), [filters, sort, direction, page, limit, displayedRoleIds]);
+  const searchKey = resourceKey(snapshotId, query);
+  const result = currentValue(searchResponse, searchKey);
   // Remote request state must reset whenever a new search starts.
   // oxlint-disable-next-line react/react-compiler
   useEffect(() => {
     if (!snapshotId) return;
-    const controller = new AbortController();
     // oxlint-disable-next-line react/react-compiler -- reset state for this remote request
     setSearching(true);
     setSearchError("");
-    const timer = setTimeout(() => {
-      api<Results>(`/snapshots/${snapshotId}/players?${query}`, { signal: controller.signal })
-        .then(setResult)
-        .catch((e) => {
-          if (!controller.signal.aborted) {
-            setSearchError(errorText(e));
-            setResult(null);
-          }
-        })
-        .finally(() => {
-          if (!controller.signal.aborted) setSearching(false);
-        });
-    }, 200);
-    return () => {
-      controller.abort();
-      clearTimeout(timer);
-    };
-  }, [snapshotId, query]);
+    return requestSnapshot<Results>({
+      path: `/snapshots/${snapshotId}/players?${query}`, request: api, delay: 200,
+      onValue: value => setSearchResponse({ key: searchKey, value }),
+      onError: e => { setSearchError(errorText(e)); setSearchResponse(null); },
+      onSettled: () => setSearching(false),
+    });
+  }, [snapshotId, query, searchKey]);
   // Clear the previous player's remote data before requesting another identity.
   // oxlint-disable-next-line react/react-compiler
   useEffect(() => {
     // oxlint-disable-next-line react/react-compiler -- prevent displaying the previous identity
-    setDetail(null);
+    setDetailResponse(null);
     setDetailError("");
     if (detailId === null || !snapshotId) return;
-    const c = new AbortController();
-    void api<Detail>(`/snapshots/${snapshotId}/players/${detailId}`, { signal: c.signal })
-      .then(setDetail)
-      .catch((e) => {
-        if (!c.signal.aborted) setDetailError(errorText(e));
-      });
-    return () => c.abort();
-  }, [detailId, snapshotId]);
+    return requestSnapshot<Detail>({
+      path: `/snapshots/${snapshotId}/players/${detailId}`, request: api,
+      onValue: value => setDetailResponse({ key: detailKey, value }),
+      onError: e => setDetailError(errorText(e)),
+    });
+  }, [detailId, snapshotId, detailKey]);
+  function openPlayer(id: number, roleId?: string) {
+    setDetailRole(roleId ?? (sort.startsWith('role:') ? sort.slice(5) : filters.role));
+    setDetailId(id);
+  }
+  function saveColumns(ids: string[]) {
+    const next = normalizeColumns(ids, availableColumns);
+    setColumnIds(next);
+    try { window.localStorage.setItem(columnStorageKey, JSON.stringify(next)); }
+    catch { /* Column editing remains available without device storage. */ }
+    return next;
+  }
+  function changeColumns(ids: string[]) {
+    const next = saveColumns(ids);
+    const nextSort = sortAfterColumns(next, sort, filters.role);
+    if (nextSort !== sort) { setSort(nextSort); setDirection(nextSort === 'name' ? 'asc' : 'desc'); setPage(1); }
+  }
+  function changeRole(role: string) {
+    const next = selectRole(filters, sort, direction, role);
+    setFilters(next.filters);
+    setSort(next.sort);
+    setDirection(next.direction);
+    setPage(next.page);
+    if (role) saveColumns([...columnIds, `role:${role}`]);
+  }
   const updateFilter = (key: string, value: string) => {
     setFilters((f) => ({ ...f, [key]: value }));
     setPage(1);
   };
   const clearFilters = () => {
     setFilters({ ...defaultFilters });
+    if (sort === "roleRating") { setSort("pa"); setDirection("desc"); }
     setPage(1);
   };
   async function importSave() {
@@ -402,7 +423,7 @@ export default function Home() {
       });
       setFolder(settings.folder);
       setSnapshot(null);
-      setResult(null);
+      setSearchResponse(null);
       setJob(null);
       clearFilters();
       await refresh();
@@ -443,11 +464,15 @@ export default function Home() {
     [saves],
   );
   const attrFilters = Object.entries(filters).filter(([k, v]) => k.startsWith("attr_") && v);
+  const roleOptions = useMemo(() => (roleCatalog?.roles ?? [])
+    .map(role => ({ value: role.id, label: roleLabel(role), description: role.group }))
+    .sort((a, b) => a.label.localeCompare(b.label)), [roleCatalog]);
+  const selectedRole = roleCatalog?.roles.find(role => role.id === filters.role);
   const activeFilters = Object.values(filters).filter(Boolean).length;
   function changeSort(key: string) {
     setSort(key);
     setDirection(
-      sort === key
+      visibleSort(sort, filters.role) === key
         ? direction === "desc"
           ? "asc"
           : "desc"
@@ -493,11 +518,11 @@ export default function Home() {
         const pa = Number(args.minimumPotential ?? 1);
         if (!Number.isInteger(pa) || pa < 1 || pa > 200)
           throw new Error("Potential must be 1–200.");
-        const found=await api<Results>(
-          `/snapshots/${snapshotId}/players?` +
-            new URLSearchParams({ q, paMin: String(pa), limit: "50" }),
-        );
-        flushSync(()=>{setFilters({ ...defaultFilters, q, paMin: String(pa) });setSort('pa');setDirection('desc');setPage(1);setLimit('50');setResult(found);});
+        const nextFilters = { ...defaultFilters, q, paMin: String(pa) };
+        const nextQuery = playerQuery(nextFilters, 'pa', 'desc', 1, '50', displayedRoleIds);
+        const found = await api<Results>(`/snapshots/${snapshotId}/players?${nextQuery}`);
+        if (lifecycle.signal.aborted) throw new Error('The active save or view changed.');
+        flushSync(()=>{setFilters(nextFilters);setSort('pa');setDirection('desc');setPage(1);setLimit('50');setSearchResponse({key:resourceKey(snapshotId,nextQuery),value:found});});
         return found;
       },
     });
@@ -515,14 +540,15 @@ export default function Home() {
         const id = Number(args.playerId);
         if (!Number.isInteger(id) || id < 0) throw new Error("Invalid player ID.");
         const p = await api<Detail>(`/snapshots/${snapshotId}/players/${id}`);
-        flushSync(()=>setDetailId(p.id));
+        if (lifecycle.signal.aborted) throw new Error('The active save changed.');
+        flushSync(()=>{setDetailRole('');setDetailId(p.id);});
         return {id:p.id,name:p.name,status:'opened'};
       },
     });
     return () => {
       lifecycle.abort();
     };
-  }, [snapshotId]);
+  }, [snapshotId, displayedRoleIds]);
 
   return (
     <main className="scout-app">
@@ -704,6 +730,18 @@ export default function Home() {
               />
               <small>Accomplished or natural (15+)</small>
             </div>
+            <div className="filter-field">
+              <label htmlFor="role-and-duty">Role and duty</label>
+              <Picker label="Role and duty" options={roleOptions} value={filters.role}
+                onChange={changeRole} placeholder="Choose a role" disabled={!snapshot || !roleCatalog} />
+              <small>Attribute fit across all positions</small>
+            </div>
+            <div className="filter-field">
+              <label htmlFor="role-minimum">Minimum role rating / 100</label>
+              <Input id="role-minimum" type="number" min={0} max={100} step="0.1"
+                placeholder="Any rating" value={filters.roleMin} disabled={!filters.role}
+                onChange={e => updateFilter("roleMin", e.target.value)} />
+            </div>
             {[
               ["age", "Age", 120],
               ["ca", "Current ability", 200],
@@ -791,7 +829,7 @@ export default function Home() {
             </div>
           </fieldset>
           <p className="filter-note">
-            Selected filters work together. Ratings use the 1–20 scale; ability uses 1–200.
+            Selected filters work together. Attributes use 1–20; ability uses 1–200; role ratings are out of 100.
           </p>
         </aside>
         <div className="results">
@@ -805,14 +843,18 @@ export default function Home() {
                   ? `${snapshot.sourceName} · ${snapshot.playerCount.toLocaleString()} players indexed`
                   : "Choose a save to explore its player database"}
               </p>
+              {selectedRole && <p className="selected-role-caption">{roleLabel(selectedRole)} · SaveLens role rating / 100</p>}
             </div>
-            <output className="search-status">
+            <div className="results-tools">
+              <PlayerColumnChooser columns={availableColumns} selected={columnIds} onChange={changeColumns} disabled={!roleCatalog} />
+              <output className="search-status">
               {searching && (
                 <>
                   <LoaderCircle className="spin" size={14} /> Searching
                 </>
               )}
-            </output>
+              </output>
+            </div>
           </div>
           {searchError ? (
             <div className="message error" role="alert">
@@ -821,93 +863,8 @@ export default function Home() {
           ) : (
             <>
               <div className="player-table" aria-busy={searching}>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      {[
-                        ["name", "Player"],
-                        ["age", "Age"],
-                        ["club", "Club"],
-                        ["", "Nationality"],
-                        ["", "Position"],
-                        ["ca", "CA"],
-                        ["pa", "PA"],
-                      ].map(([key, title]) => (
-                        <TableHead
-                          key={title}
-                          aria-sort={
-                            key && sort === key
-                              ? direction === "asc"
-                                ? "ascending"
-                                : "descending"
-                              : undefined
-                          }
-                        >
-                          {key ? (
-                            <button
-                              className="sort-button"
-                              onClick={() => changeSort(key)}
-                              aria-label={`Sort by ${title}`}
-                            >
-                              {title}
-                              {sort === key &&
-                                (direction === "asc" ? (
-                                  <ArrowUp size={13} />
-                                ) : (
-                                  <ArrowDown size={13} />
-                                ))}
-                            </button>
-                          ) : (
-                            title
-                          )}
-                        </TableHead>
-                      ))}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {result?.players.map((p: Player) => (
-                      <TableRow key={p.id} onClick={() => setDetailId(p.id)} className="player-row">
-                        <TableCell>
-                          <button
-                            className="player-name"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDetailId(p.id);
-                            }}
-                          >
-                            {p.name}
-                          </button>
-                        </TableCell>
-                        <TableCell className="number">{p.age}</TableCell>
-                        <TableCell className={!p.club ? "muted" : ""}>
-                          {p.club ?? "Unavailable"}
-                        </TableCell>
-                        <TableCell>
-                          <span className="nationality" title={p.nationalities.join(" · ")}>
-                            {p.nationalities[0]}
-                            {p.nationalities.length > 1 && (
-                              <small> +{p.nationalities.length - 1}</small>
-                            )}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <span className="positions">
-                            {p.positions.join(", ") || "Unavailable"}
-                          </span>
-                        </TableCell>
-                        <TableCell className="number ca">{p.ca}</TableCell>
-                        <TableCell>
-                          <div className="potential">
-                            <strong>{p.pa}</strong>
-                            <span>
-                              <i style={{ width: `${p.pa / 2}%` }} />
-                            </span>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                <PlayerListTable players={result?.players ?? []} columns={displayedColumns}
+                  sort={visibleSort(sort, filters.role)} direction={direction} onSort={changeSort} onOpen={openPlayer} />
               </div>
               {(!snapshot || !result?.players.length) && (
                 <div className="empty-state">
@@ -1100,6 +1057,15 @@ export default function Home() {
                     ),
                 )}
               </div>
+              <Tabs key={detailKey} defaultValue={detailRole ? "roles" : "attributes"} className="profile-tabs">
+                <TabsList aria-label="Player information">
+                  <TabsTrigger value="attributes">Attributes</TabsTrigger>
+                  <TabsTrigger value="roles">Role ratings</TabsTrigger>
+                </TabsList>
+                <TabsContent value="roles">
+                  <RoleRatings player={detail} roles={roleCatalog?.roles ?? []} attributes={attributes} initialRoleId={detailRole} />
+                </TabsContent>
+                <TabsContent value="attributes">
               <div className="attribute-groups">
                 {groups.map((group) => (
                   <section className="attribute-group" key={group}>
@@ -1130,6 +1096,8 @@ export default function Home() {
                 ↓ Lower is generally preferable. A dash means unavailable. Position ratings below 10
                 are omitted from this summary.
               </p>
+                </TabsContent>
+              </Tabs>
               <p className="detail-id">
                 Player ID {detail.uid} <span>·</span> {snapshot?.sourceName}
               </p>

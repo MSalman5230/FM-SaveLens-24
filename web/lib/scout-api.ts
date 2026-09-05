@@ -43,12 +43,41 @@ export type Player = {
   positions: string[];
   ca: number;
   pa: number;
+  roleRating?: number | null;
+  roleScores?: Record<string, number | null>;
 };
 export type Detail = Player & {
   fullName: string;
   birthDate: string;
   positionRatings: number[];
   attributes: Record<string, number | null>;
+  roleRatings: RoleRating[];
+};
+export type RoleDefinition = {
+  id: string;
+  role: string;
+  name: string;
+  duty: 'defend' | 'support' | 'attack' | 'stopper' | 'cover';
+  group: string;
+  keyAttributes: string[];
+  preferableAttributes: string[];
+  source: string;
+  sourceRole: string;
+};
+export type RoleRating = {
+  roleId: string;
+  score: number | null;
+  missingAttributes: string[];
+};
+export type RoleCatalog = {
+  version: string;
+  modelVersion: string;
+  gameVersion: string;
+  keyWeight: number;
+  preferableWeight: number;
+  scale: number;
+  sources: { id: string; title: string; url: string; accessed?: string }[];
+  roles: RoleDefinition[];
 };
 export type Results = {
   total: number;

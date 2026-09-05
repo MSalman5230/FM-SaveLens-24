@@ -1,0 +1,2421 @@
+{
+  "version": "fm24-roles-1",
+  "modelVersion": "key2-preferable1-v1",
+  "gameVersion": "FM24",
+  "keyWeight": 2,
+  "preferableWeight": 1,
+  "scale": 100,
+  "sourceMatrixSha256": "55bc7a5bd2e07b47bf3f01e6b592ade67f369460d24d51a6774dcb394c6675d8",
+  "sources": [
+    {
+      "id": "matrix",
+      "title": "Squad Analyzer FM2024: Important_attributes_per_role",
+      "url": "https://docs.google.com/spreadsheets/d/1cq4W3ippnF-5XQUIlONsd4yGip8IvGrUICYmWempTe0/edit#gid=1821538342",
+      "accessed": "2026-09-05"
+    },
+    {
+      "id": "manual",
+      "title": "Sports Interactive FM24 manual: Roles and Duties",
+      "url": "https://community.sports-interactive.com/sigames-manual/football-manager-2024/tactics-r4960/"
+    },
+    {
+      "id": "model",
+      "title": "Community analyzer documentation (2/1/0 weights)",
+      "url": "https://github.com/ami-167/Squad_analyzer_FM_2024/blob/8f10a4b658ab0ebdc863cdaf58fd5296b1cd0ce3/README%20v1.0.md"
+    }
+  ],
+  "roles": [
+    {
+      "id": "gk-defend",
+      "role": "gk",
+      "name": "Goalkeeper",
+      "group": "Goalkeepers",
+      "duty": "defend",
+      "keyAttributes": [
+        "concentration",
+        "positioning",
+        "agility",
+        "aerialReach",
+        "commandOfArea",
+        "communication",
+        "handling",
+        "kicking",
+        "reflexes"
+      ],
+      "preferableAttributes": [
+        "anticipation",
+        "decisions",
+        "oneOnOnes",
+        "throwing"
+      ],
+      "source": "matrix",
+      "sourceRole": "G - De"
+    },
+    {
+      "id": "sk-defend",
+      "role": "sk",
+      "name": "Sweeper Keeper",
+      "group": "Goalkeepers",
+      "duty": "defend",
+      "keyAttributes": [
+        "anticipation",
+        "concentration",
+        "positioning",
+        "agility",
+        "commandOfArea",
+        "kicking",
+        "oneOnOnes",
+        "reflexes"
+      ],
+      "preferableAttributes": [
+        "firstTouch",
+        "passing",
+        "composure",
+        "decisions",
+        "vision",
+        "acceleration",
+        "aerialReach",
+        "communication",
+        "handling",
+        "rushingOut",
+        "throwing"
+      ],
+      "source": "matrix",
+      "sourceRole": "SK - De"
+    },
+    {
+      "id": "sk-support",
+      "role": "sk",
+      "name": "Sweeper Keeper",
+      "group": "Goalkeepers",
+      "duty": "support",
+      "keyAttributes": [
+        "anticipation",
+        "composure",
+        "concentration",
+        "positioning",
+        "agility",
+        "commandOfArea",
+        "kicking",
+        "oneOnOnes",
+        "reflexes",
+        "rushingOut"
+      ],
+      "preferableAttributes": [
+        "firstTouch",
+        "passing",
+        "decisions",
+        "vision",
+        "acceleration",
+        "aerialReach",
+        "communication",
+        "handling",
+        "throwing"
+      ],
+      "source": "matrix",
+      "sourceRole": "SK - Su"
+    },
+    {
+      "id": "sk-attack",
+      "role": "sk",
+      "name": "Sweeper Keeper",
+      "group": "Goalkeepers",
+      "duty": "attack",
+      "keyAttributes": [
+        "anticipation",
+        "composure",
+        "concentration",
+        "positioning",
+        "agility",
+        "commandOfArea",
+        "kicking",
+        "oneOnOnes",
+        "reflexes",
+        "rushingOut"
+      ],
+      "preferableAttributes": [
+        "firstTouch",
+        "passing",
+        "decisions",
+        "vision",
+        "acceleration",
+        "aerialReach",
+        "communication",
+        "eccentricity",
+        "handling",
+        "throwing"
+      ],
+      "source": "matrix",
+      "sourceRole": "SK - At"
+    },
+    {
+      "id": "cd-defend",
+      "role": "cd",
+      "name": "Central Defender",
+      "group": "Central defenders",
+      "duty": "defend",
+      "keyAttributes": [
+        "heading",
+        "marking",
+        "tackling",
+        "positioning",
+        "jumpingReach",
+        "strength"
+      ],
+      "preferableAttributes": [
+        "aggression",
+        "anticipation",
+        "bravery",
+        "composure",
+        "concentration",
+        "decisions",
+        "pace"
+      ],
+      "source": "matrix",
+      "sourceRole": "CD - De"
+    },
+    {
+      "id": "cd-stopper",
+      "role": "cd",
+      "name": "Central Defender",
+      "group": "Central defenders",
+      "duty": "stopper",
+      "keyAttributes": [
+        "heading",
+        "tackling",
+        "aggression",
+        "bravery",
+        "decisions",
+        "positioning",
+        "jumpingReach",
+        "strength"
+      ],
+      "preferableAttributes": [
+        "marking",
+        "anticipation",
+        "composure",
+        "concentration"
+      ],
+      "source": "matrix",
+      "sourceRole": "CD - St"
+    },
+    {
+      "id": "cd-cover",
+      "role": "cd",
+      "name": "Central Defender",
+      "group": "Central defenders",
+      "duty": "cover",
+      "keyAttributes": [
+        "marking",
+        "tackling",
+        "anticipation",
+        "concentration",
+        "decisions",
+        "positioning",
+        "pace"
+      ],
+      "preferableAttributes": [
+        "heading",
+        "bravery",
+        "composure",
+        "jumpingReach",
+        "strength"
+      ],
+      "source": "matrix",
+      "sourceRole": "CD - Co"
+    },
+    {
+      "id": "ncb-defend",
+      "role": "ncb",
+      "name": "No-Nonsense Centre-Back",
+      "group": "Central defenders",
+      "duty": "defend",
+      "keyAttributes": [
+        "heading",
+        "marking",
+        "tackling",
+        "positioning",
+        "jumpingReach",
+        "strength"
+      ],
+      "preferableAttributes": [
+        "aggression",
+        "anticipation",
+        "bravery",
+        "concentration",
+        "pace"
+      ],
+      "source": "matrix",
+      "sourceRole": "NCB - De"
+    },
+    {
+      "id": "ncb-stopper",
+      "role": "ncb",
+      "name": "No-Nonsense Centre-Back",
+      "group": "Central defenders",
+      "duty": "stopper",
+      "keyAttributes": [
+        "heading",
+        "tackling",
+        "aggression",
+        "bravery",
+        "positioning",
+        "jumpingReach",
+        "strength"
+      ],
+      "preferableAttributes": [
+        "marking",
+        "anticipation",
+        "concentration"
+      ],
+      "source": "matrix",
+      "sourceRole": "NCB - St"
+    },
+    {
+      "id": "ncb-cover",
+      "role": "ncb",
+      "name": "No-Nonsense Centre-Back",
+      "group": "Central defenders",
+      "duty": "cover",
+      "keyAttributes": [
+        "marking",
+        "tackling",
+        "anticipation",
+        "concentration",
+        "positioning",
+        "pace"
+      ],
+      "preferableAttributes": [
+        "heading",
+        "bravery",
+        "jumpingReach",
+        "strength"
+      ],
+      "source": "matrix",
+      "sourceRole": "NCB - Co"
+    },
+    {
+      "id": "bpd-defend",
+      "role": "bpd",
+      "name": "Ball-Playing Defender",
+      "group": "Central defenders",
+      "duty": "defend",
+      "keyAttributes": [
+        "heading",
+        "marking",
+        "passing",
+        "tackling",
+        "composure",
+        "positioning",
+        "jumpingReach",
+        "strength"
+      ],
+      "preferableAttributes": [
+        "firstTouch",
+        "technique",
+        "aggression",
+        "anticipation",
+        "bravery",
+        "concentration",
+        "decisions",
+        "vision",
+        "pace"
+      ],
+      "source": "matrix",
+      "sourceRole": "BPD - De"
+    },
+    {
+      "id": "bpd-stopper",
+      "role": "bpd",
+      "name": "Ball-Playing Defender",
+      "group": "Central defenders",
+      "duty": "stopper",
+      "keyAttributes": [
+        "heading",
+        "passing",
+        "tackling",
+        "aggression",
+        "bravery",
+        "composure",
+        "decisions",
+        "positioning",
+        "jumpingReach",
+        "strength"
+      ],
+      "preferableAttributes": [
+        "firstTouch",
+        "marking",
+        "technique",
+        "anticipation",
+        "concentration",
+        "vision"
+      ],
+      "source": "matrix",
+      "sourceRole": "BPD - St"
+    },
+    {
+      "id": "bpd-cover",
+      "role": "bpd",
+      "name": "Ball-Playing Defender",
+      "group": "Central defenders",
+      "duty": "cover",
+      "keyAttributes": [
+        "marking",
+        "passing",
+        "tackling",
+        "anticipation",
+        "composure",
+        "concentration",
+        "decisions",
+        "positioning",
+        "pace"
+      ],
+      "preferableAttributes": [
+        "firstTouch",
+        "heading",
+        "technique",
+        "bravery",
+        "vision",
+        "jumpingReach",
+        "strength"
+      ],
+      "source": "matrix",
+      "sourceRole": "BPD - Co"
+    },
+    {
+      "id": "lib-defend",
+      "role": "lib",
+      "name": "Libero",
+      "group": "Central defenders",
+      "duty": "defend",
+      "keyAttributes": [
+        "firstTouch",
+        "heading",
+        "marking",
+        "passing",
+        "tackling",
+        "technique",
+        "composure",
+        "decisions",
+        "positioning",
+        "teamwork",
+        "jumpingReach",
+        "strength"
+      ],
+      "preferableAttributes": [
+        "anticipation",
+        "bravery",
+        "concentration",
+        "pace",
+        "stamina"
+      ],
+      "source": "matrix",
+      "sourceRole": "L - De"
+    },
+    {
+      "id": "lib-support",
+      "role": "lib",
+      "name": "Libero",
+      "group": "Central defenders",
+      "duty": "support",
+      "keyAttributes": [
+        "firstTouch",
+        "heading",
+        "marking",
+        "passing",
+        "tackling",
+        "technique",
+        "composure",
+        "decisions",
+        "positioning",
+        "teamwork",
+        "jumpingReach",
+        "strength"
+      ],
+      "preferableAttributes": [
+        "dribbling",
+        "anticipation",
+        "bravery",
+        "concentration",
+        "vision",
+        "pace",
+        "stamina"
+      ],
+      "source": "matrix",
+      "sourceRole": "L - Su"
+    },
+    {
+      "id": "wcb-defend",
+      "role": "wcb",
+      "name": "Wide Centre-Back",
+      "group": "Central defenders",
+      "duty": "defend",
+      "keyAttributes": [
+        "heading",
+        "marking",
+        "tackling",
+        "positioning",
+        "jumpingReach",
+        "strength"
+      ],
+      "preferableAttributes": [
+        "dribbling",
+        "firstTouch",
+        "passing",
+        "technique",
+        "aggression",
+        "anticipation",
+        "bravery",
+        "composure",
+        "concentration",
+        "decisions",
+        "workRate",
+        "agility",
+        "pace"
+      ],
+      "source": "matrix",
+      "sourceRole": "WCB - De"
+    },
+    {
+      "id": "wcb-support",
+      "role": "wcb",
+      "name": "Wide Centre-Back",
+      "group": "Central defenders",
+      "duty": "support",
+      "keyAttributes": [
+        "dribbling",
+        "heading",
+        "marking",
+        "tackling",
+        "positioning",
+        "jumpingReach",
+        "pace",
+        "strength"
+      ],
+      "preferableAttributes": [
+        "crossing",
+        "firstTouch",
+        "passing",
+        "technique",
+        "aggression",
+        "anticipation",
+        "bravery",
+        "composure",
+        "concentration",
+        "decisions",
+        "offTheBall",
+        "workRate",
+        "agility",
+        "stamina"
+      ],
+      "source": "matrix",
+      "sourceRole": "WCB - Su"
+    },
+    {
+      "id": "wcb-attack",
+      "role": "wcb",
+      "name": "Wide Centre-Back",
+      "group": "Central defenders",
+      "duty": "attack",
+      "keyAttributes": [
+        "crossing",
+        "dribbling",
+        "heading",
+        "marking",
+        "tackling",
+        "offTheBall",
+        "jumpingReach",
+        "pace",
+        "stamina",
+        "strength"
+      ],
+      "preferableAttributes": [
+        "firstTouch",
+        "passing",
+        "technique",
+        "aggression",
+        "anticipation",
+        "bravery",
+        "composure",
+        "concentration",
+        "decisions",
+        "positioning",
+        "workRate",
+        "agility"
+      ],
+      "source": "matrix",
+      "sourceRole": "WCB - At"
+    },
+    {
+      "id": "nfb-defend",
+      "role": "nfb",
+      "name": "No-Nonsense Full-Back",
+      "group": "Full-backs and wing-backs",
+      "duty": "defend",
+      "keyAttributes": [
+        "marking",
+        "tackling",
+        "anticipation",
+        "positioning",
+        "strength"
+      ],
+      "preferableAttributes": [
+        "heading",
+        "aggression",
+        "bravery",
+        "concentration",
+        "teamwork"
+      ],
+      "source": "matrix",
+      "sourceRole": "NFB - De"
+    },
+    {
+      "id": "fb-defend",
+      "role": "fb",
+      "name": "Full-Back",
+      "group": "Full-backs and wing-backs",
+      "duty": "defend",
+      "keyAttributes": [
+        "marking",
+        "tackling",
+        "anticipation",
+        "concentration",
+        "positioning"
+      ],
+      "preferableAttributes": [
+        "crossing",
+        "passing",
+        "decisions",
+        "teamwork",
+        "workRate",
+        "pace",
+        "stamina"
+      ],
+      "source": "matrix",
+      "sourceRole": "FB - De"
+    },
+    {
+      "id": "fb-support",
+      "role": "fb",
+      "name": "Full-Back",
+      "group": "Full-backs and wing-backs",
+      "duty": "support",
+      "keyAttributes": [
+        "marking",
+        "tackling",
+        "anticipation",
+        "concentration",
+        "positioning",
+        "teamwork"
+      ],
+      "preferableAttributes": [
+        "crossing",
+        "dribbling",
+        "passing",
+        "technique",
+        "decisions",
+        "workRate",
+        "pace",
+        "stamina"
+      ],
+      "source": "matrix",
+      "sourceRole": "FB - Su"
+    },
+    {
+      "id": "fb-attack",
+      "role": "fb",
+      "name": "Full-Back",
+      "group": "Full-backs and wing-backs",
+      "duty": "attack",
+      "keyAttributes": [
+        "crossing",
+        "marking",
+        "tackling",
+        "anticipation",
+        "positioning",
+        "teamwork"
+      ],
+      "preferableAttributes": [
+        "dribbling",
+        "firstTouch",
+        "passing",
+        "technique",
+        "concentration",
+        "decisions",
+        "offTheBall",
+        "workRate",
+        "agility",
+        "pace",
+        "stamina"
+      ],
+      "source": "matrix",
+      "sourceRole": "FB - At"
+    },
+    {
+      "id": "ifb-defend",
+      "role": "ifb",
+      "name": "Inverted Full-Back",
+      "group": "Full-backs and wing-backs",
+      "duty": "defend",
+      "keyAttributes": [
+        "heading",
+        "marking",
+        "tackling",
+        "positioning",
+        "strength"
+      ],
+      "preferableAttributes": [
+        "dribbling",
+        "firstTouch",
+        "passing",
+        "technique",
+        "aggression",
+        "anticipation",
+        "bravery",
+        "composure",
+        "concentration",
+        "decisions",
+        "workRate",
+        "agility",
+        "jumpingReach",
+        "pace"
+      ],
+      "source": "matrix",
+      "sourceRole": "IFB - De"
+    },
+    {
+      "id": "wb-defend",
+      "role": "wb",
+      "name": "Wing-Back",
+      "group": "Full-backs and wing-backs",
+      "duty": "defend",
+      "keyAttributes": [
+        "marking",
+        "tackling",
+        "anticipation",
+        "positioning",
+        "teamwork",
+        "workRate",
+        "acceleration",
+        "stamina"
+      ],
+      "preferableAttributes": [
+        "crossing",
+        "dribbling",
+        "firstTouch",
+        "passing",
+        "technique",
+        "concentration",
+        "decisions",
+        "offTheBall",
+        "agility",
+        "balance",
+        "pace"
+      ],
+      "source": "matrix",
+      "sourceRole": "WB - De"
+    },
+    {
+      "id": "wb-support",
+      "role": "wb",
+      "name": "Wing-Back",
+      "group": "Full-backs and wing-backs",
+      "duty": "support",
+      "keyAttributes": [
+        "crossing",
+        "dribbling",
+        "marking",
+        "tackling",
+        "offTheBall",
+        "teamwork",
+        "workRate",
+        "acceleration",
+        "stamina"
+      ],
+      "preferableAttributes": [
+        "firstTouch",
+        "passing",
+        "technique",
+        "anticipation",
+        "concentration",
+        "decisions",
+        "positioning",
+        "agility",
+        "balance",
+        "pace"
+      ],
+      "source": "matrix",
+      "sourceRole": "WB - Su"
+    },
+    {
+      "id": "wb-attack",
+      "role": "wb",
+      "name": "Wing-Back",
+      "group": "Full-backs and wing-backs",
+      "duty": "attack",
+      "keyAttributes": [
+        "crossing",
+        "dribbling",
+        "tackling",
+        "technique",
+        "offTheBall",
+        "teamwork",
+        "workRate",
+        "acceleration",
+        "pace",
+        "stamina"
+      ],
+      "preferableAttributes": [
+        "firstTouch",
+        "marking",
+        "passing",
+        "anticipation",
+        "concentration",
+        "decisions",
+        "flair",
+        "positioning",
+        "agility",
+        "balance"
+      ],
+      "source": "matrix",
+      "sourceRole": "WB - At"
+    },
+    {
+      "id": "cwb-support",
+      "role": "cwb",
+      "name": "Complete Wing-Back",
+      "group": "Full-backs and wing-backs",
+      "duty": "support",
+      "keyAttributes": [
+        "crossing",
+        "dribbling",
+        "technique",
+        "offTheBall",
+        "teamwork",
+        "workRate",
+        "acceleration",
+        "stamina"
+      ],
+      "preferableAttributes": [
+        "firstTouch",
+        "marking",
+        "passing",
+        "tackling",
+        "anticipation",
+        "decisions",
+        "flair",
+        "positioning",
+        "agility",
+        "balance",
+        "pace"
+      ],
+      "source": "matrix",
+      "sourceRole": "CWB - Su"
+    },
+    {
+      "id": "cwb-attack",
+      "role": "cwb",
+      "name": "Complete Wing-Back",
+      "group": "Full-backs and wing-backs",
+      "duty": "attack",
+      "keyAttributes": [
+        "crossing",
+        "dribbling",
+        "technique",
+        "flair",
+        "offTheBall",
+        "teamwork",
+        "workRate",
+        "acceleration",
+        "stamina"
+      ],
+      "preferableAttributes": [
+        "firstTouch",
+        "marking",
+        "passing",
+        "tackling",
+        "anticipation",
+        "decisions",
+        "positioning",
+        "agility",
+        "balance",
+        "pace"
+      ],
+      "source": "matrix",
+      "sourceRole": "CWB - At"
+    },
+    {
+      "id": "iwb-defend",
+      "role": "iwb",
+      "name": "Inverted Wing-Back",
+      "group": "Full-backs and wing-backs",
+      "duty": "defend",
+      "keyAttributes": [
+        "passing",
+        "tackling",
+        "anticipation",
+        "decisions",
+        "positioning",
+        "teamwork"
+      ],
+      "preferableAttributes": [
+        "firstTouch",
+        "marking",
+        "technique",
+        "composure",
+        "concentration",
+        "offTheBall",
+        "workRate",
+        "acceleration",
+        "agility",
+        "stamina"
+      ],
+      "source": "matrix",
+      "sourceRole": "IWB - De"
+    },
+    {
+      "id": "iwb-support",
+      "role": "iwb",
+      "name": "Inverted Wing-Back",
+      "group": "Full-backs and wing-backs",
+      "duty": "support",
+      "keyAttributes": [
+        "firstTouch",
+        "passing",
+        "tackling",
+        "composure",
+        "decisions",
+        "teamwork"
+      ],
+      "preferableAttributes": [
+        "marking",
+        "technique",
+        "anticipation",
+        "concentration",
+        "offTheBall",
+        "positioning",
+        "vision",
+        "workRate",
+        "acceleration",
+        "agility",
+        "stamina"
+      ],
+      "source": "matrix",
+      "sourceRole": "IWB - Su"
+    },
+    {
+      "id": "iwb-attack",
+      "role": "iwb",
+      "name": "Inverted Wing-Back",
+      "group": "Full-backs and wing-backs",
+      "duty": "attack",
+      "keyAttributes": [
+        "firstTouch",
+        "passing",
+        "tackling",
+        "technique",
+        "composure",
+        "decisions",
+        "offTheBall",
+        "teamwork",
+        "vision",
+        "acceleration"
+      ],
+      "preferableAttributes": [
+        "crossing",
+        "dribbling",
+        "longShots",
+        "marking",
+        "anticipation",
+        "concentration",
+        "flair",
+        "positioning",
+        "workRate",
+        "agility",
+        "pace",
+        "stamina"
+      ],
+      "source": "matrix",
+      "sourceRole": "IWB - At"
+    },
+    {
+      "id": "ap-support",
+      "role": "ap",
+      "name": "Advanced Playmaker",
+      "group": "Central and defensive midfielders",
+      "duty": "support",
+      "keyAttributes": [
+        "firstTouch",
+        "passing",
+        "technique",
+        "composure",
+        "decisions",
+        "offTheBall",
+        "teamwork",
+        "vision"
+      ],
+      "preferableAttributes": [
+        "dribbling",
+        "anticipation",
+        "flair",
+        "agility"
+      ],
+      "source": "matrix",
+      "sourceRole": "AP - Su"
+    },
+    {
+      "id": "ap-attack",
+      "role": "ap",
+      "name": "Advanced Playmaker",
+      "group": "Central and defensive midfielders",
+      "duty": "attack",
+      "keyAttributes": [
+        "firstTouch",
+        "passing",
+        "technique",
+        "composure",
+        "decisions",
+        "offTheBall",
+        "teamwork",
+        "vision"
+      ],
+      "preferableAttributes": [
+        "dribbling",
+        "anticipation",
+        "flair",
+        "acceleration",
+        "agility"
+      ],
+      "source": "matrix",
+      "sourceRole": "AP - At"
+    },
+    {
+      "id": "anchor-defend",
+      "role": "anchor",
+      "name": "Anchor",
+      "group": "Central and defensive midfielders",
+      "duty": "defend",
+      "keyAttributes": [
+        "marking",
+        "tackling",
+        "anticipation",
+        "concentration",
+        "decisions",
+        "positioning"
+      ],
+      "preferableAttributes": [
+        "composure",
+        "teamwork",
+        "strength"
+      ],
+      "source": "matrix",
+      "sourceRole": "A - De"
+    },
+    {
+      "id": "am-support",
+      "role": "am",
+      "name": "Attacking Midfielder",
+      "group": "Attacking midfielders and forwards",
+      "duty": "support",
+      "keyAttributes": [
+        "firstTouch",
+        "longShots",
+        "passing",
+        "technique",
+        "anticipation",
+        "decisions",
+        "flair",
+        "offTheBall"
+      ],
+      "preferableAttributes": [
+        "dribbling",
+        "composure",
+        "vision",
+        "agility"
+      ],
+      "source": "matrix",
+      "sourceRole": "AM - Su"
+    },
+    {
+      "id": "am-attack",
+      "role": "am",
+      "name": "Attacking Midfielder",
+      "group": "Attacking midfielders and forwards",
+      "duty": "attack",
+      "keyAttributes": [
+        "dribbling",
+        "firstTouch",
+        "longShots",
+        "passing",
+        "technique",
+        "anticipation",
+        "decisions",
+        "flair",
+        "offTheBall"
+      ],
+      "preferableAttributes": [
+        "finishing",
+        "composure",
+        "vision",
+        "agility"
+      ],
+      "source": "matrix",
+      "sourceRole": "AM - At"
+    },
+    {
+      "id": "bwm-defend",
+      "role": "bwm",
+      "name": "Ball-Winning Midfielder",
+      "group": "Central and defensive midfielders",
+      "duty": "defend",
+      "keyAttributes": [
+        "tackling",
+        "aggression",
+        "anticipation",
+        "teamwork",
+        "workRate",
+        "stamina"
+      ],
+      "preferableAttributes": [
+        "marking",
+        "bravery",
+        "concentration",
+        "positioning",
+        "agility",
+        "pace",
+        "strength"
+      ],
+      "source": "matrix",
+      "sourceRole": "BWM - De"
+    },
+    {
+      "id": "bwm-support",
+      "role": "bwm",
+      "name": "Ball-Winning Midfielder",
+      "group": "Central and defensive midfielders",
+      "duty": "support",
+      "keyAttributes": [
+        "tackling",
+        "aggression",
+        "anticipation",
+        "teamwork",
+        "workRate",
+        "stamina"
+      ],
+      "preferableAttributes": [
+        "marking",
+        "passing",
+        "bravery",
+        "concentration",
+        "agility",
+        "pace",
+        "strength"
+      ],
+      "source": "matrix",
+      "sourceRole": "BWM - Su"
+    },
+    {
+      "id": "bbm-support",
+      "role": "bbm",
+      "name": "Box-to-Box Midfielder",
+      "group": "Central and defensive midfielders",
+      "duty": "support",
+      "keyAttributes": [
+        "passing",
+        "tackling",
+        "offTheBall",
+        "teamwork",
+        "workRate",
+        "stamina"
+      ],
+      "preferableAttributes": [
+        "dribbling",
+        "finishing",
+        "firstTouch",
+        "longShots",
+        "technique",
+        "aggression",
+        "anticipation",
+        "composure",
+        "decisions",
+        "positioning",
+        "acceleration",
+        "balance",
+        "pace",
+        "strength"
+      ],
+      "source": "matrix",
+      "sourceRole": "BBM - Su"
+    },
+    {
+      "id": "car-support",
+      "role": "car",
+      "name": "Carrilero",
+      "group": "Central and defensive midfielders",
+      "duty": "support",
+      "keyAttributes": [
+        "firstTouch",
+        "passing",
+        "tackling",
+        "decisions",
+        "positioning",
+        "teamwork",
+        "stamina"
+      ],
+      "preferableAttributes": [
+        "technique",
+        "anticipation",
+        "composure",
+        "concentration",
+        "offTheBall",
+        "vision",
+        "workRate"
+      ],
+      "source": "matrix",
+      "sourceRole": "CAR - Su"
+    },
+    {
+      "id": "cm-defend",
+      "role": "cm",
+      "name": "Central Midfielder",
+      "group": "Central and defensive midfielders",
+      "duty": "defend",
+      "keyAttributes": [
+        "tackling",
+        "concentration",
+        "decisions",
+        "positioning",
+        "teamwork"
+      ],
+      "preferableAttributes": [
+        "firstTouch",
+        "marking",
+        "passing",
+        "technique",
+        "aggression",
+        "anticipation",
+        "composure",
+        "workRate",
+        "stamina"
+      ],
+      "source": "matrix",
+      "sourceRole": "CM - De"
+    },
+    {
+      "id": "cm-support",
+      "role": "cm",
+      "name": "Central Midfielder",
+      "group": "Central and defensive midfielders",
+      "duty": "support",
+      "keyAttributes": [
+        "firstTouch",
+        "passing",
+        "tackling",
+        "decisions",
+        "teamwork"
+      ],
+      "preferableAttributes": [
+        "technique",
+        "anticipation",
+        "composure",
+        "concentration",
+        "offTheBall",
+        "vision",
+        "workRate",
+        "stamina"
+      ],
+      "source": "matrix",
+      "sourceRole": "CM - Su"
+    },
+    {
+      "id": "cm-attack",
+      "role": "cm",
+      "name": "Central Midfielder",
+      "group": "Central and defensive midfielders",
+      "duty": "attack",
+      "keyAttributes": [
+        "firstTouch",
+        "passing",
+        "decisions",
+        "offTheBall"
+      ],
+      "preferableAttributes": [
+        "longShots",
+        "tackling",
+        "technique",
+        "anticipation",
+        "composure",
+        "teamwork",
+        "vision",
+        "workRate",
+        "acceleration",
+        "stamina"
+      ],
+      "source": "matrix",
+      "sourceRole": "CM - At"
+    },
+    {
+      "id": "dlp-defend",
+      "role": "dlp",
+      "name": "Deep-Lying Playmaker",
+      "group": "Central and defensive midfielders",
+      "duty": "defend",
+      "keyAttributes": [
+        "firstTouch",
+        "passing",
+        "technique",
+        "composure",
+        "decisions",
+        "teamwork",
+        "vision"
+      ],
+      "preferableAttributes": [
+        "tackling",
+        "anticipation",
+        "positioning",
+        "balance"
+      ],
+      "source": "matrix",
+      "sourceRole": "DLP - De"
+    },
+    {
+      "id": "dlp-support",
+      "role": "dlp",
+      "name": "Deep-Lying Playmaker",
+      "group": "Central and defensive midfielders",
+      "duty": "support",
+      "keyAttributes": [
+        "firstTouch",
+        "passing",
+        "technique",
+        "composure",
+        "decisions",
+        "teamwork",
+        "vision"
+      ],
+      "preferableAttributes": [
+        "anticipation",
+        "offTheBall",
+        "positioning",
+        "balance"
+      ],
+      "source": "matrix",
+      "sourceRole": "DLP - Su"
+    },
+    {
+      "id": "dm-defend",
+      "role": "dm",
+      "name": "Defensive Midfielder",
+      "group": "Central and defensive midfielders",
+      "duty": "defend",
+      "keyAttributes": [
+        "tackling",
+        "anticipation",
+        "concentration",
+        "positioning",
+        "teamwork"
+      ],
+      "preferableAttributes": [
+        "marking",
+        "passing",
+        "aggression",
+        "composure",
+        "decisions",
+        "workRate",
+        "stamina",
+        "strength"
+      ],
+      "source": "matrix",
+      "sourceRole": "DM - De"
+    },
+    {
+      "id": "dm-support",
+      "role": "dm",
+      "name": "Defensive Midfielder",
+      "group": "Central and defensive midfielders",
+      "duty": "support",
+      "keyAttributes": [
+        "tackling",
+        "anticipation",
+        "concentration",
+        "positioning",
+        "teamwork"
+      ],
+      "preferableAttributes": [
+        "firstTouch",
+        "marking",
+        "passing",
+        "aggression",
+        "composure",
+        "decisions",
+        "workRate",
+        "stamina",
+        "strength"
+      ],
+      "source": "matrix",
+      "sourceRole": "DM - Su"
+    },
+    {
+      "id": "dw-defend",
+      "role": "dw",
+      "name": "Defensive Winger",
+      "group": "Wide roles",
+      "duty": "defend",
+      "keyAttributes": [
+        "technique",
+        "anticipation",
+        "offTheBall",
+        "positioning",
+        "teamwork",
+        "workRate",
+        "stamina"
+      ],
+      "preferableAttributes": [
+        "crossing",
+        "dribbling",
+        "firstTouch",
+        "marking",
+        "tackling",
+        "aggression",
+        "concentration",
+        "decisions",
+        "acceleration"
+      ],
+      "source": "matrix",
+      "sourceRole": "DW - De"
+    },
+    {
+      "id": "dw-support",
+      "role": "dw",
+      "name": "Defensive Winger",
+      "group": "Wide roles",
+      "duty": "support",
+      "keyAttributes": [
+        "crossing",
+        "technique",
+        "offTheBall",
+        "teamwork",
+        "workRate",
+        "stamina"
+      ],
+      "preferableAttributes": [
+        "dribbling",
+        "firstTouch",
+        "marking",
+        "passing",
+        "tackling",
+        "aggression",
+        "anticipation",
+        "composure",
+        "concentration",
+        "decisions",
+        "positioning",
+        "acceleration"
+      ],
+      "source": "matrix",
+      "sourceRole": "DW - Su"
+    },
+    {
+      "id": "eng-support",
+      "role": "eng",
+      "name": "Enganche",
+      "group": "Attacking midfielders and forwards",
+      "duty": "support",
+      "keyAttributes": [
+        "firstTouch",
+        "passing",
+        "technique",
+        "composure",
+        "decisions",
+        "vision"
+      ],
+      "preferableAttributes": [
+        "dribbling",
+        "anticipation",
+        "flair",
+        "offTheBall",
+        "agility"
+      ],
+      "source": "matrix",
+      "sourceRole": "EG - Su"
+    },
+    {
+      "id": "hb-defend",
+      "role": "hb",
+      "name": "Half Back",
+      "group": "Central and defensive midfielders",
+      "duty": "defend",
+      "keyAttributes": [
+        "marking",
+        "tackling",
+        "anticipation",
+        "composure",
+        "concentration",
+        "decisions",
+        "positioning",
+        "teamwork"
+      ],
+      "preferableAttributes": [
+        "firstTouch",
+        "passing",
+        "aggression",
+        "bravery",
+        "workRate",
+        "jumpingReach",
+        "stamina",
+        "strength"
+      ],
+      "source": "matrix",
+      "sourceRole": "HB - De"
+    },
+    {
+      "id": "if-support",
+      "role": "if",
+      "name": "Inside Forward",
+      "group": "Wide roles",
+      "duty": "support",
+      "keyAttributes": [
+        "dribbling",
+        "finishing",
+        "firstTouch",
+        "technique",
+        "offTheBall",
+        "acceleration",
+        "agility"
+      ],
+      "preferableAttributes": [
+        "longShots",
+        "passing",
+        "anticipation",
+        "composure",
+        "flair",
+        "vision",
+        "workRate",
+        "balance",
+        "pace",
+        "stamina"
+      ],
+      "source": "matrix",
+      "sourceRole": "IF - Su"
+    },
+    {
+      "id": "if-attack",
+      "role": "if",
+      "name": "Inside Forward",
+      "group": "Wide roles",
+      "duty": "attack",
+      "keyAttributes": [
+        "dribbling",
+        "finishing",
+        "firstTouch",
+        "technique",
+        "anticipation",
+        "offTheBall",
+        "acceleration",
+        "agility"
+      ],
+      "preferableAttributes": [
+        "longShots",
+        "passing",
+        "composure",
+        "flair",
+        "workRate",
+        "balance",
+        "pace",
+        "stamina"
+      ],
+      "source": "matrix",
+      "sourceRole": "IF - At"
+    },
+    {
+      "id": "iw-support",
+      "role": "iw",
+      "name": "Inverted Winger",
+      "group": "Wide roles",
+      "duty": "support",
+      "keyAttributes": [
+        "crossing",
+        "dribbling",
+        "passing",
+        "technique",
+        "acceleration",
+        "agility"
+      ],
+      "preferableAttributes": [
+        "firstTouch",
+        "longShots",
+        "composure",
+        "decisions",
+        "offTheBall",
+        "vision",
+        "workRate",
+        "balance",
+        "pace",
+        "stamina"
+      ],
+      "source": "matrix",
+      "sourceRole": "IW - Su"
+    },
+    {
+      "id": "iw-attack",
+      "role": "iw",
+      "name": "Inverted Winger",
+      "group": "Wide roles",
+      "duty": "attack",
+      "keyAttributes": [
+        "crossing",
+        "dribbling",
+        "passing",
+        "technique",
+        "acceleration",
+        "agility"
+      ],
+      "preferableAttributes": [
+        "firstTouch",
+        "longShots",
+        "anticipation",
+        "composure",
+        "decisions",
+        "flair",
+        "offTheBall",
+        "vision",
+        "workRate",
+        "balance",
+        "pace",
+        "stamina"
+      ],
+      "source": "matrix",
+      "sourceRole": "IW - At"
+    },
+    {
+      "id": "mez-support",
+      "role": "mez",
+      "name": "Mezzala",
+      "group": "Central and defensive midfielders",
+      "duty": "support",
+      "keyAttributes": [
+        "passing",
+        "technique",
+        "decisions",
+        "offTheBall",
+        "workRate",
+        "acceleration"
+      ],
+      "preferableAttributes": [
+        "dribbling",
+        "firstTouch",
+        "longShots",
+        "tackling",
+        "anticipation",
+        "composure",
+        "vision",
+        "balance",
+        "stamina"
+      ],
+      "source": "matrix",
+      "sourceRole": "MEZ - Su"
+    },
+    {
+      "id": "mez-attack",
+      "role": "mez",
+      "name": "Mezzala",
+      "group": "Central and defensive midfielders",
+      "duty": "attack",
+      "keyAttributes": [
+        "dribbling",
+        "passing",
+        "technique",
+        "decisions",
+        "offTheBall",
+        "vision",
+        "workRate",
+        "acceleration"
+      ],
+      "preferableAttributes": [
+        "finishing",
+        "firstTouch",
+        "longShots",
+        "anticipation",
+        "composure",
+        "flair",
+        "balance",
+        "stamina"
+      ],
+      "source": "matrix",
+      "sourceRole": "MEZ - At"
+    },
+    {
+      "id": "rmd-attack",
+      "role": "rmd",
+      "name": "Raumdeuter",
+      "group": "Wide roles",
+      "duty": "attack",
+      "keyAttributes": [
+        "finishing",
+        "anticipation",
+        "composure",
+        "concentration",
+        "decisions",
+        "offTheBall",
+        "balance"
+      ],
+      "preferableAttributes": [
+        "firstTouch",
+        "technique",
+        "workRate",
+        "acceleration",
+        "stamina"
+      ],
+      "source": "matrix",
+      "sourceRole": "RMD - At"
+    },
+    {
+      "id": "reg-support",
+      "role": "reg",
+      "name": "Regista",
+      "group": "Central and defensive midfielders",
+      "duty": "support",
+      "keyAttributes": [
+        "firstTouch",
+        "passing",
+        "technique",
+        "composure",
+        "decisions",
+        "flair",
+        "offTheBall",
+        "teamwork",
+        "vision"
+      ],
+      "preferableAttributes": [
+        "dribbling",
+        "longShots",
+        "anticipation",
+        "balance"
+      ],
+      "source": "matrix",
+      "sourceRole": "RGA - Su"
+    },
+    {
+      "id": "rpm-support",
+      "role": "rpm",
+      "name": "Roaming Playmaker",
+      "group": "Central and defensive midfielders",
+      "duty": "support",
+      "keyAttributes": [
+        "firstTouch",
+        "passing",
+        "technique",
+        "anticipation",
+        "composure",
+        "decisions",
+        "offTheBall",
+        "teamwork",
+        "vision",
+        "workRate",
+        "acceleration",
+        "stamina"
+      ],
+      "preferableAttributes": [
+        "dribbling",
+        "longShots",
+        "concentration",
+        "positioning",
+        "agility",
+        "balance",
+        "pace"
+      ],
+      "source": "matrix",
+      "sourceRole": "RPM - Su"
+    },
+    {
+      "id": "sv-support",
+      "role": "sv",
+      "name": "Segundo Volante",
+      "group": "Central and defensive midfielders",
+      "duty": "support",
+      "keyAttributes": [
+        "marking",
+        "passing",
+        "tackling",
+        "offTheBall",
+        "positioning",
+        "workRate",
+        "pace",
+        "stamina"
+      ],
+      "preferableAttributes": [
+        "finishing",
+        "firstTouch",
+        "longShots",
+        "anticipation",
+        "composure",
+        "concentration",
+        "decisions",
+        "acceleration",
+        "balance",
+        "strength"
+      ],
+      "source": "matrix",
+      "sourceRole": "VOL - Su"
+    },
+    {
+      "id": "sv-attack",
+      "role": "sv",
+      "name": "Segundo Volante",
+      "group": "Central and defensive midfielders",
+      "duty": "attack",
+      "keyAttributes": [
+        "finishing",
+        "longShots",
+        "passing",
+        "tackling",
+        "anticipation",
+        "offTheBall",
+        "positioning",
+        "workRate",
+        "pace",
+        "stamina"
+      ],
+      "preferableAttributes": [
+        "firstTouch",
+        "marking",
+        "composure",
+        "concentration",
+        "decisions",
+        "acceleration",
+        "balance",
+        "strength"
+      ],
+      "source": "matrix",
+      "sourceRole": "VOL - At"
+    },
+    {
+      "id": "ss-attack",
+      "role": "ss",
+      "name": "Shadow Striker",
+      "group": "Attacking midfielders and forwards",
+      "duty": "attack",
+      "keyAttributes": [
+        "dribbling",
+        "finishing",
+        "firstTouch",
+        "anticipation",
+        "composure",
+        "offTheBall",
+        "acceleration"
+      ],
+      "preferableAttributes": [
+        "passing",
+        "technique",
+        "concentration",
+        "decisions",
+        "workRate",
+        "agility",
+        "balance",
+        "pace",
+        "stamina"
+      ],
+      "source": "matrix",
+      "sourceRole": "SS - At"
+    },
+    {
+      "id": "wm-defend",
+      "role": "wm",
+      "name": "Wide Midfielder",
+      "group": "Wide roles",
+      "duty": "defend",
+      "keyAttributes": [
+        "passing",
+        "tackling",
+        "concentration",
+        "decisions",
+        "positioning",
+        "teamwork",
+        "workRate"
+      ],
+      "preferableAttributes": [
+        "crossing",
+        "firstTouch",
+        "marking",
+        "technique",
+        "anticipation",
+        "composure",
+        "stamina"
+      ],
+      "source": "matrix",
+      "sourceRole": "WM - De"
+    },
+    {
+      "id": "wm-support",
+      "role": "wm",
+      "name": "Wide Midfielder",
+      "group": "Wide roles",
+      "duty": "support",
+      "keyAttributes": [
+        "passing",
+        "tackling",
+        "decisions",
+        "teamwork",
+        "workRate",
+        "stamina"
+      ],
+      "preferableAttributes": [
+        "crossing",
+        "firstTouch",
+        "technique",
+        "anticipation",
+        "composure",
+        "concentration",
+        "offTheBall",
+        "positioning",
+        "vision"
+      ],
+      "source": "matrix",
+      "sourceRole": "WM - Su"
+    },
+    {
+      "id": "wm-attack",
+      "role": "wm",
+      "name": "Wide Midfielder",
+      "group": "Wide roles",
+      "duty": "attack",
+      "keyAttributes": [
+        "crossing",
+        "firstTouch",
+        "passing",
+        "decisions",
+        "teamwork",
+        "workRate",
+        "stamina"
+      ],
+      "preferableAttributes": [
+        "tackling",
+        "technique",
+        "anticipation",
+        "composure",
+        "offTheBall",
+        "vision"
+      ],
+      "source": "matrix",
+      "sourceRole": "WM - At"
+    },
+    {
+      "id": "wp-support",
+      "role": "wp",
+      "name": "Wide Playmaker",
+      "group": "Wide roles",
+      "duty": "support",
+      "keyAttributes": [
+        "firstTouch",
+        "passing",
+        "technique",
+        "composure",
+        "decisions",
+        "teamwork",
+        "vision"
+      ],
+      "preferableAttributes": [
+        "dribbling",
+        "offTheBall",
+        "agility"
+      ],
+      "source": "matrix",
+      "sourceRole": "WP - Su"
+    },
+    {
+      "id": "wp-attack",
+      "role": "wp",
+      "name": "Wide Playmaker",
+      "group": "Wide roles",
+      "duty": "attack",
+      "keyAttributes": [
+        "dribbling",
+        "firstTouch",
+        "passing",
+        "technique",
+        "composure",
+        "decisions",
+        "offTheBall",
+        "teamwork",
+        "vision"
+      ],
+      "preferableAttributes": [
+        "anticipation",
+        "flair",
+        "acceleration",
+        "agility"
+      ],
+      "source": "matrix",
+      "sourceRole": "WP - At"
+    },
+    {
+      "id": "wtf-support",
+      "role": "wtf",
+      "name": "Wide Target Forward",
+      "group": "Wide roles",
+      "duty": "support",
+      "keyAttributes": [
+        "heading",
+        "bravery",
+        "teamwork",
+        "jumpingReach",
+        "strength"
+      ],
+      "preferableAttributes": [
+        "crossing",
+        "firstTouch",
+        "anticipation",
+        "offTheBall",
+        "workRate",
+        "balance",
+        "stamina"
+      ],
+      "source": "matrix",
+      "sourceRole": "WT - Su"
+    },
+    {
+      "id": "wtf-attack",
+      "role": "wtf",
+      "name": "Wide Target Forward",
+      "group": "Wide roles",
+      "duty": "attack",
+      "keyAttributes": [
+        "heading",
+        "bravery",
+        "offTheBall",
+        "jumpingReach",
+        "strength"
+      ],
+      "preferableAttributes": [
+        "crossing",
+        "finishing",
+        "firstTouch",
+        "anticipation",
+        "teamwork",
+        "workRate",
+        "balance",
+        "stamina"
+      ],
+      "source": "matrix",
+      "sourceRole": "WT - At"
+    },
+    {
+      "id": "w-support",
+      "role": "w",
+      "name": "Winger",
+      "group": "Wide roles",
+      "duty": "support",
+      "keyAttributes": [
+        "crossing",
+        "dribbling",
+        "technique",
+        "acceleration",
+        "agility"
+      ],
+      "preferableAttributes": [
+        "firstTouch",
+        "passing",
+        "offTheBall",
+        "workRate",
+        "balance",
+        "pace",
+        "stamina"
+      ],
+      "source": "matrix",
+      "sourceRole": "W - Su"
+    },
+    {
+      "id": "w-attack",
+      "role": "w",
+      "name": "Winger",
+      "group": "Wide roles",
+      "duty": "attack",
+      "keyAttributes": [
+        "crossing",
+        "dribbling",
+        "technique",
+        "acceleration",
+        "agility"
+      ],
+      "preferableAttributes": [
+        "firstTouch",
+        "passing",
+        "anticipation",
+        "flair",
+        "offTheBall",
+        "workRate",
+        "balance",
+        "pace",
+        "stamina"
+      ],
+      "source": "matrix",
+      "sourceRole": "W - At"
+    },
+    {
+      "id": "af-attack",
+      "role": "af",
+      "name": "Advanced Forward",
+      "group": "Attacking midfielders and forwards",
+      "duty": "attack",
+      "keyAttributes": [
+        "dribbling",
+        "finishing",
+        "firstTouch",
+        "technique",
+        "composure",
+        "offTheBall",
+        "acceleration"
+      ],
+      "preferableAttributes": [
+        "passing",
+        "anticipation",
+        "decisions",
+        "workRate",
+        "agility",
+        "balance",
+        "pace",
+        "stamina"
+      ],
+      "source": "matrix",
+      "sourceRole": "AF - At"
+    },
+    {
+      "id": "cf-support",
+      "role": "cf",
+      "name": "Complete Forward",
+      "group": "Attacking midfielders and forwards",
+      "duty": "support",
+      "keyAttributes": [
+        "dribbling",
+        "firstTouch",
+        "heading",
+        "longShots",
+        "passing",
+        "technique",
+        "anticipation",
+        "composure",
+        "decisions",
+        "offTheBall",
+        "vision",
+        "acceleration",
+        "agility",
+        "strength"
+      ],
+      "preferableAttributes": [
+        "finishing",
+        "teamwork",
+        "workRate",
+        "balance",
+        "jumpingReach",
+        "pace",
+        "stamina"
+      ],
+      "source": "matrix",
+      "sourceRole": "CF - Su"
+    },
+    {
+      "id": "cf-attack",
+      "role": "cf",
+      "name": "Complete Forward",
+      "group": "Attacking midfielders and forwards",
+      "duty": "attack",
+      "keyAttributes": [
+        "dribbling",
+        "finishing",
+        "firstTouch",
+        "heading",
+        "technique",
+        "anticipation",
+        "composure",
+        "offTheBall",
+        "acceleration",
+        "agility",
+        "strength"
+      ],
+      "preferableAttributes": [
+        "longShots",
+        "passing",
+        "decisions",
+        "teamwork",
+        "vision",
+        "workRate",
+        "balance",
+        "jumpingReach",
+        "pace",
+        "stamina"
+      ],
+      "source": "matrix",
+      "sourceRole": "CF - At"
+    },
+    {
+      "id": "dlf-support",
+      "role": "dlf",
+      "name": "Deep-Lying Forward",
+      "group": "Attacking midfielders and forwards",
+      "duty": "support",
+      "keyAttributes": [
+        "firstTouch",
+        "passing",
+        "technique",
+        "composure",
+        "decisions",
+        "offTheBall",
+        "teamwork"
+      ],
+      "preferableAttributes": [
+        "finishing",
+        "anticipation",
+        "flair",
+        "vision",
+        "balance",
+        "strength"
+      ],
+      "source": "matrix",
+      "sourceRole": "DLF - Su"
+    },
+    {
+      "id": "dlf-attack",
+      "role": "dlf",
+      "name": "Deep-Lying Forward",
+      "group": "Attacking midfielders and forwards",
+      "duty": "attack",
+      "keyAttributes": [
+        "firstTouch",
+        "passing",
+        "technique",
+        "composure",
+        "decisions",
+        "offTheBall",
+        "teamwork"
+      ],
+      "preferableAttributes": [
+        "dribbling",
+        "finishing",
+        "anticipation",
+        "flair",
+        "vision",
+        "balance",
+        "strength"
+      ],
+      "source": "matrix",
+      "sourceRole": "DLF - At"
+    },
+    {
+      "id": "f9-support",
+      "role": "f9",
+      "name": "False Nine",
+      "group": "Attacking midfielders and forwards",
+      "duty": "support",
+      "keyAttributes": [
+        "dribbling",
+        "firstTouch",
+        "passing",
+        "technique",
+        "composure",
+        "decisions",
+        "offTheBall",
+        "vision",
+        "acceleration",
+        "agility"
+      ],
+      "preferableAttributes": [
+        "finishing",
+        "anticipation",
+        "flair",
+        "teamwork",
+        "balance"
+      ],
+      "source": "matrix",
+      "sourceRole": "F9 - Su"
+    },
+    {
+      "id": "p-attack",
+      "role": "p",
+      "name": "Poacher",
+      "group": "Attacking midfielders and forwards",
+      "duty": "attack",
+      "keyAttributes": [
+        "finishing",
+        "anticipation",
+        "composure",
+        "offTheBall"
+      ],
+      "preferableAttributes": [
+        "firstTouch",
+        "heading",
+        "technique",
+        "decisions",
+        "acceleration"
+      ],
+      "source": "matrix",
+      "sourceRole": "P - At"
+    },
+    {
+      "id": "pf-defend",
+      "role": "pf",
+      "name": "Pressing Forward",
+      "group": "Attacking midfielders and forwards",
+      "duty": "defend",
+      "keyAttributes": [
+        "aggression",
+        "anticipation",
+        "bravery",
+        "decisions",
+        "teamwork",
+        "workRate",
+        "acceleration",
+        "pace",
+        "stamina"
+      ],
+      "preferableAttributes": [
+        "firstTouch",
+        "composure",
+        "concentration",
+        "agility",
+        "balance",
+        "strength"
+      ],
+      "source": "matrix",
+      "sourceRole": "PF - De"
+    },
+    {
+      "id": "pf-support",
+      "role": "pf",
+      "name": "Pressing Forward",
+      "group": "Attacking midfielders and forwards",
+      "duty": "support",
+      "keyAttributes": [
+        "aggression",
+        "anticipation",
+        "bravery",
+        "decisions",
+        "teamwork",
+        "workRate",
+        "acceleration",
+        "pace",
+        "stamina"
+      ],
+      "preferableAttributes": [
+        "firstTouch",
+        "passing",
+        "composure",
+        "concentration",
+        "offTheBall",
+        "agility",
+        "balance",
+        "strength"
+      ],
+      "source": "matrix",
+      "sourceRole": "PF - Su"
+    },
+    {
+      "id": "pf-attack",
+      "role": "pf",
+      "name": "Pressing Forward",
+      "group": "Attacking midfielders and forwards",
+      "duty": "attack",
+      "keyAttributes": [
+        "aggression",
+        "anticipation",
+        "bravery",
+        "offTheBall",
+        "teamwork",
+        "workRate",
+        "acceleration",
+        "pace",
+        "stamina"
+      ],
+      "preferableAttributes": [
+        "finishing",
+        "firstTouch",
+        "composure",
+        "concentration",
+        "decisions",
+        "agility",
+        "balance",
+        "strength"
+      ],
+      "source": "matrix",
+      "sourceRole": "PF - At"
+    },
+    {
+      "id": "tf-support",
+      "role": "tf",
+      "name": "Target Forward",
+      "group": "Attacking midfielders and forwards",
+      "duty": "support",
+      "keyAttributes": [
+        "heading",
+        "bravery",
+        "teamwork",
+        "balance",
+        "jumpingReach",
+        "strength"
+      ],
+      "preferableAttributes": [
+        "finishing",
+        "firstTouch",
+        "aggression",
+        "anticipation",
+        "composure",
+        "decisions",
+        "offTheBall"
+      ],
+      "source": "matrix",
+      "sourceRole": "TF - Su"
+    },
+    {
+      "id": "tf-attack",
+      "role": "tf",
+      "name": "Target Forward",
+      "group": "Attacking midfielders and forwards",
+      "duty": "attack",
+      "keyAttributes": [
+        "finishing",
+        "heading",
+        "bravery",
+        "composure",
+        "offTheBall",
+        "balance",
+        "jumpingReach",
+        "strength"
+      ],
+      "preferableAttributes": [
+        "firstTouch",
+        "aggression",
+        "anticipation",
+        "decisions",
+        "teamwork"
+      ],
+      "source": "matrix",
+      "sourceRole": "TF - At"
+    },
+    {
+      "id": "t-attack",
+      "role": "t",
+      "name": "Trequartista",
+      "group": "Attacking midfielders and forwards",
+      "duty": "attack",
+      "keyAttributes": [
+        "dribbling",
+        "firstTouch",
+        "passing",
+        "technique",
+        "composure",
+        "decisions",
+        "flair",
+        "offTheBall",
+        "vision",
+        "acceleration"
+      ],
+      "preferableAttributes": [
+        "finishing",
+        "anticipation",
+        "agility",
+        "balance"
+      ],
+      "source": "matrix",
+      "sourceRole": "T - At"
+    }
+  ]
+}
