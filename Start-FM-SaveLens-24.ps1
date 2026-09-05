@@ -1,9 +1,9 @@
 param([switch]$NoBrowser, [switch]$Stop)
 $ErrorActionPreference = 'Stop'
 $scoutRoot = $PSScriptRoot
-$scoutData = if ($env:FMSCOUT_DATA_DIR) { $env:FMSCOUT_DATA_DIR } else { Join-Path $env:LOCALAPPDATA 'io.github.MSalman5230.FMSaveLens24' }
+$scoutData = if ($env:FM_SAVELENS_24_DATA_DIR) { $env:FM_SAVELENS_24_DATA_DIR } else { Join-Path $env:LOCALAPPDATA 'io.github.MSalman5230.FMSaveLens24' }
 $scoutPidFile = Join-Path $scoutData 'server.pid.json'
-$scoutPort = if ($env:FMSCOUT_PORT) { [int]$env:FMSCOUT_PORT } else { 4242 }
+$scoutPort = if ($env:FM_SAVELENS_24_PORT) { [int]$env:FM_SAVELENS_24_PORT } else { 4242 }
 $scoutUrl = "http://127.0.0.1:$scoutPort"
 try {
     if ($Stop) {

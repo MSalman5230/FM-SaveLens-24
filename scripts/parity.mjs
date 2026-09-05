@@ -4,7 +4,7 @@ import { createReadStream, existsSync, readdirSync, mkdirSync, writeFileSync } f
 import { createHash } from 'node:crypto';
 import { join, resolve } from 'node:path';
 import assert from 'node:assert/strict';
-const folder = process.argv[2] || process.env.FMSCOUT_FIXTURE_DIR;
+const folder = process.argv[2] || process.env.FM_SAVELENS_24_FIXTURE_DIR;
 if (!folder) throw new Error('Pass the save directory: npm run test:parity -- PATH');
 const binary = resolve('target/release/examples/parse-save' + (process.platform === 'win32' ? '.exe' : ''));
 if (!existsSync(binary)) throw new Error('Build the Rust reference tool: cargo build --release --locked --example parse-save');

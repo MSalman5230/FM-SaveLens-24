@@ -23,12 +23,12 @@ import { ATTRIBUTES, POSITIONS } from "./parser/attributes.ts";
 import { searchPlayers, QueryError } from "./storage.ts";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const data =
-  process.env.FMSCOUT_DATA_DIR ||
-  join(process.env.LOCALAPPDATA || join(root, ".cache"), "FMScout24");
+  process.env.FM_SAVELENS_24_DATA_DIR ||
+  join(process.env.LOCALAPPDATA || join(root, ".cache"), "FM-SaveLens-24");
 const cache = join(data, "snapshots");
 mkdirSync(cache, { recursive: true });
 const settingsFile = join(data, "settings.json");
-const defaultFolder = process.env.FMSCOUT_FIXTURE_DIR || join(homedir(), "Documents", "Sports Interactive", "Football Manager 2024", "games");
+const defaultFolder = process.env.FM_SAVELENS_24_FIXTURE_DIR || join(homedir(), "Documents", "Sports Interactive", "Football Manager 2024", "games");
 let settings: { folder: string; lastSnapshot?: string } = { folder: defaultFolder };
 try {
   settings = { ...settings, ...JSON.parse(readFileSync(settingsFile, "utf8")) };
@@ -179,7 +179,7 @@ function launchImport(saveId: string) {
   });
   return job;
 }
-const port = Number(process.env.FMSCOUT_PORT || 4242);
+const port = Number(process.env.FM_SAVELENS_24_PORT || 4242);
 const allowedOrigins = new Set([`http://127.0.0.1:${port}`, "http://127.0.0.1:5173"]);
 function json(res: ServerResponse, status: number, value: unknown) {
   res.writeHead(status, {

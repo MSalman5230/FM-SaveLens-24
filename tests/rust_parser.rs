@@ -67,6 +67,81 @@ fn compressed_and_plain_records_match_and_query_correctly() {
     }
     assert_eq!(variants[0], variants[1]);
 }
+
+#[test]
+fn cached_timestamps_round_trip_and_staleness_still_detects_source_changes() {
+    use fm_savelens_backend::{parser::PARSER_VERSION, service::mtime};
+    use rusqlite::Connection;
+    use serde_json::Value;
+    use std::time::{Duration, UNIX_EPOCH};
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("unchanged.fm");
+    fs::write(&path, b"unchanged source").unwrap();
+    let file = fs::OpenOptions::new().write(true).open(&path).unwrap();
+    let stamp = UNIX_EPOCH + Duration::new(1_780_000_000, 100_000);
+    file.set_times(fs::FileTimes::new().set_modified(stamp))
+        .unwrap();
+    let stat = fs::metadata(&path).unwrap();
+    let original = mtime(&stat).unwrap();
+    // This decimal previously deserialized to 1780000000000.1 instead.
+    let legacy: Value = serde_json::from_str("{\"sourceMtime\":1780000000000.0999}").unwrap();
+    assert_eq!(legacy["sourceMtime"].as_f64(), Some(1780000000000.0999));
+    let metadata = json!({
+        "sourcePath":path, "sourceSize":stat.len(), "sourceMtime":original,
+        "parserVersion":PARSER_VERSION,
+    });
+    let encoded = metadata.to_string();
+    assert_eq!(
+        serde_json::from_str::<Value>(&encoded).unwrap()["sourceMtime"].as_f64(),
+        Some(original)
+    );
+    let dbpath = dir.path().join("legacy.sqlite");
+    {
+        let db = Connection::open(&dbpath).unwrap();
+        db.execute_batch("CREATE TABLE metadata (key TEXT PRIMARY KEY,value TEXT NOT NULL)")
+            .unwrap();
+        db.execute("INSERT INTO metadata VALUES ('snapshot',?)", [&encoded])
+            .unwrap();
+    }
+    let db = storage::open_snapshot(&dbpath).unwrap();
+    assert_eq!(storage::metadata(&db).unwrap()["stale"], false);
+    file.set_times(fs::FileTimes::new().set_modified(stamp + Duration::from_secs(1)))
+        .unwrap();
+    assert_eq!(storage::metadata(&db).unwrap()["stale"], true);
+    file.set_times(fs::FileTimes::new().set_modified(stamp))
+        .unwrap();
+    assert_eq!(storage::metadata(&db).unwrap()["stale"], false);
+    file.set_len(stat.len() + 1).unwrap();
+    file.set_times(fs::FileTimes::new().set_modified(stamp))
+        .unwrap();
+    assert_eq!(storage::metadata(&db).unwrap()["stale"], true);
+    file.set_len(stat.len()).unwrap();
+    file.set_times(fs::FileTimes::new().set_modified(stamp))
+        .unwrap();
+    assert_eq!(storage::metadata(&db).unwrap()["stale"], false);
+    let mut incompatible = metadata;
+    incompatible["parserVersion"] = json!("old-parser");
+    let writer = Connection::open(&dbpath).unwrap();
+    writer
+        .execute(
+            "UPDATE metadata SET value=? WHERE key='snapshot'",
+            [incompatible.to_string()],
+        )
+        .unwrap();
+    assert_eq!(storage::metadata(&db).unwrap()["stale"], true);
+    writer
+        .execute(
+            "UPDATE metadata SET value=? WHERE key='snapshot'",
+            [encoded],
+        )
+        .unwrap();
+    drop(writer);
+    assert_eq!(storage::metadata(&db).unwrap()["stale"], false);
+    drop(file);
+    fs::remove_file(&path).unwrap();
+    assert_eq!(storage::metadata(&db).unwrap()["stale"], true);
+}
 #[test]
 fn malformed_and_unsupported_archives_are_rejected() {
     let dir = tempfile::tempdir().unwrap();
