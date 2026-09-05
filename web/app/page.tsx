@@ -433,6 +433,7 @@ export default function Home() {
       });
       setFolder(settings.folder);
       setSnapshot(null);
+      setDetailId(null);
       setSearchResponse(null);
       setJob(null);
       clearFilters();
