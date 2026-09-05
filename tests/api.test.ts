@@ -18,7 +18,7 @@ import { createServer } from "node:net";
 import { setTimeout as delay } from "node:timers/promises";
 import { SaveArchive, SaveError } from "../server/parser/archive.ts";
 import { readNames } from "../server/parser/strings.ts";
-const source = join(process.env.FMSCOUT_FIXTURE_DIR || "tests/fixtures/private", "Tactics Creator.fm");
+const source = join(process.env.FM_SAVELENS_24_FIXTURE_DIR || "tests/fixtures/private", "Tactics Creator.fm");
 test("Truncated archives and absent name tables return clear format errors", () => {
   const root = mkdtempSync(join(tmpdir(), "fm24-format-"));
   try {
@@ -56,7 +56,7 @@ test(
     });
     const child = spawn(resolve("target/release/fm-savelens-24-server" + (process.platform === "win32" ? ".exe" : "")), ["--no-open"], {
       cwd: resolve("."),
-      env: { ...process.env, FMSCOUT_PORT: String(port), FMSCOUT_DATA_DIR: data },
+      env: { ...process.env, FM_SAVELENS_24_PORT: String(port), FM_SAVELENS_24_DATA_DIR: data },
       windowsHide: true,
       stdio: ["ignore", "pipe", "pipe"],
     });

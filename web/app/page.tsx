@@ -59,6 +59,7 @@ import {
 import { Progress, ProgressLabel, ProgressValue } from "@/components/ui/progress";
 import { Pagination, PaginationContent, PaginationItem } from "@/components/ui/pagination";
 import { api, date, size } from "@/lib/scout-api";
+import { watchSnapshotFocus } from "@/lib/focus-refresh";
 import type {
   Attribute,
   Option,
@@ -215,18 +216,21 @@ export default function Home() {
     snapshotId = snapshot?.snapshotId;
   const running = jobStatus === "running";
   const chosen = saves.find((s) => s.id === selected);
-  const refresh = useCallback(async (preferSnapshot?: string) => {
-    const list = await api<{ saves: SaveFile[] }>("/saves");
-    setSaves(list.saves);
+  const applySaves = useCallback((files: SaveFile[], preferSnapshot?: string) => {
+    setSaves(files);
     setSelected((old) =>
-      list.saves.some((s) => s.id === old)
+      files.some((s) => s.id === old)
         ? old
         : ((
-            list.saves.find((s) => s.snapshotId === preferSnapshot) ??
-            list.saves[0]
+            files.find((s) => s.snapshotId === preferSnapshot) ??
+            files[0]
           )?.id ?? ""),
     );
   }, []);
+  const refresh = useCallback(async (preferSnapshot?: string) => {
+    const list = await api<{ saves: SaveFile[] }>("/saves");
+    applySaves(list.saves, preferSnapshot);
+  }, [applySaves]);
   const loadSnapshot = useCallback(async (id: string) => {
     const meta = await api<Snapshot>("/snapshots/" + id);
     setSnapshot(meta);
@@ -293,15 +297,14 @@ export default function Home() {
   // Recheck the source when returning to the app after playing or saving in FM.
   useEffect(() => {
     if (!snapshotId) return;
-    const check = () => {
-      void api<Snapshot>("/snapshots/" + snapshotId)
-        .then((m) => setSnapshot(m))
-        .catch(() => {});
-      void refresh().catch(() => {});
-    };
-    window.addEventListener("focus", check);
-    return () => window.removeEventListener("focus", check);
-  }, [snapshotId, refresh]);
+    return watchSnapshotFocus({
+      target: window,
+      snapshotId,
+      request: api,
+      setSnapshot,
+      setSaves: applySaves,
+    });
+  }, [snapshotId, applySaves]);
   const query = useMemo(() => {
     const p = new URLSearchParams({ sort, direction, page: String(page), limit });
     for (const [key, value] of Object.entries(filters)) if (value) p.set(key, value);

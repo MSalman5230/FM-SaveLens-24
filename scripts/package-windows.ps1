@@ -24,7 +24,7 @@ Copy-Item -LiteralPath $runtimeExe.Directory.FullName -Destination (Join-Path $s
 foreach ($file in @('fm-savelens-24.exe','fm-savelens-24-server.exe')) {
     Copy-Item -LiteralPath (Join-Path $projectRoot "target/release/$file") -Destination $stage
 }
-foreach ($file in @('README.md','Start-FMScout.ps1','Start-Browser.cmd','Stop-Browser.cmd')) {
+foreach ($file in @('README.md','Start-FM-SaveLens-24.ps1','Start-Browser.cmd','Stop-Browser.cmd')) {
     Copy-Item -LiteralPath (Join-Path $projectRoot $file) -Destination $stage
 }
 $zip = Join-Path $projectRoot "dist/FM-SaveLens-24-v$version-windows-x64-portable.zip"
