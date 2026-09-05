@@ -1,5 +1,8 @@
 import type { Metadata, Viewport } from "next";
+import manifestSource from "../public/site.webmanifest?raw";
 import "./globals.css";
+
+const manifest = JSON.parse(manifestSource) as { theme_color: string };
 
 export const metadata: Metadata = {
   title: "FM SaveLens 24 — Local Player Database",
@@ -17,7 +20,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#171e20",
+  themeColor: manifest.theme_color,
 };
 
 export default function RootLayout({
