@@ -2,7 +2,25 @@ import type { Metadata, Viewport } from "next";
 import manifestSource from "../public/site.webmanifest?raw";
 import "./globals.css";
 
-const manifest = JSON.parse(manifestSource) as { theme_color: string };
+let manifest: unknown;
+try {
+  manifest = JSON.parse(manifestSource);
+} catch (cause) {
+  throw new Error("Invalid JSON in web/public/site.webmanifest.", { cause });
+}
+
+if (
+  manifest === null ||
+  typeof manifest !== "object" ||
+  Array.isArray(manifest) ||
+  !("theme_color" in manifest) ||
+  typeof manifest.theme_color !== "string" ||
+  manifest.theme_color.trim().length === 0
+) {
+  throw new Error(
+    "Invalid web/public/site.webmanifest: theme_color must be a non-empty string in a JSON object.",
+  );
+}
 
 export const metadata: Metadata = {
   title: "FM SaveLens 24 — Local Player Database",
