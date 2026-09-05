@@ -55,7 +55,7 @@ import { RoleRatings } from "@/components/role-ratings";
 import { playerQuery, roleLabel, selectRole } from "@/lib/role-ratings";
 import { PlayerColumnChooser } from "@/components/player-column-chooser";
 import { PlayerListTable } from "@/components/player-list-table";
-import { columnStorageKey, defaultColumns, normalizeColumns, playerColumns, restoreColumns, sortAfterColumns, visibleSort } from "@/lib/player-columns";
+import { columnStorageKey, defaultColumns, normalizeColumns, playerColumns, restoreColumns, resolveColumnSort, visibleSort } from "@/lib/player-columns";
 import { currentValue, requestSnapshot, resourceKey } from "@/lib/snapshot-request";
 import type { ScopedValue } from "@/lib/snapshot-request";
 import type {
@@ -263,7 +263,14 @@ export default function Home() {
         setAttributes(catalog.attributes);
         setPositions(catalog.positions);
         setRoleCatalog(roles);
-        try { setColumnIds(restoreColumns(window.localStorage.getItem(columnStorageKey), playerColumns(roles.roles))); }
+        try {
+          const restored = restoreColumns(window.localStorage.getItem(columnStorageKey), playerColumns(roles.roles));
+          const nextSort = resolveColumnSort(restored, 'pa', 'desc', '');
+          setColumnIds(restored);
+          setSort(nextSort.sort);
+          setDirection(nextSort.direction);
+          setPage(1);
+        }
         catch { /* The default view works when device storage is unavailable. */ }
         setJob(settings.activeJob);
         await refresh(settings.lastSnapshot);
@@ -360,24 +367,27 @@ export default function Home() {
   }
   function changeColumns(ids: string[]) {
     const next = saveColumns(ids);
-    const nextSort = sortAfterColumns(next, sort, filters.role);
-    if (nextSort !== sort) { setSort(nextSort); setDirection(nextSort === 'name' ? 'asc' : 'desc'); setPage(1); }
+    const nextSort = resolveColumnSort(next, sort, direction, filters.role);
+    if (nextSort.sort !== sort) { setSort(nextSort.sort); setDirection(nextSort.direction); setPage(1); }
   }
   function changeRole(role: string) {
+    const nextColumns = role ? saveColumns([...columnIds, `role:${role}`]) : columnIds;
     const next = selectRole(filters, sort, direction, role);
+    const nextSort = resolveColumnSort(nextColumns, next.sort, next.direction, role);
     setFilters(next.filters);
-    setSort(next.sort);
-    setDirection(next.direction);
+    setSort(nextSort.sort);
+    setDirection(nextSort.direction);
     setPage(next.page);
-    if (role) saveColumns([...columnIds, `role:${role}`]);
   }
   const updateFilter = (key: string, value: string) => {
     setFilters((f) => ({ ...f, [key]: value }));
     setPage(1);
   };
   const clearFilters = () => {
+    const nextSort = resolveColumnSort(columnIds, sort, direction, '');
     setFilters({ ...defaultFilters });
-    if (sort === "roleRating") { setSort("pa"); setDirection("desc"); }
+    setSort(nextSort.sort);
+    setDirection(nextSort.direction);
     setPage(1);
   };
   async function importSave() {
@@ -519,10 +529,11 @@ export default function Home() {
         if (!Number.isInteger(pa) || pa < 1 || pa > 200)
           throw new Error("Potential must be 1–200.");
         const nextFilters = { ...defaultFilters, q, paMin: String(pa) };
-        const nextQuery = playerQuery(nextFilters, 'pa', 'desc', 1, '50', displayedRoleIds);
+        const nextSort = resolveColumnSort(columnIds, 'pa', 'desc', '');
+        const nextQuery = playerQuery(nextFilters, nextSort.sort, nextSort.direction, 1, '50', displayedRoleIds);
         const found = await api<Results>(`/snapshots/${snapshotId}/players?${nextQuery}`);
         if (lifecycle.signal.aborted) throw new Error('The active save or view changed.');
-        flushSync(()=>{setFilters(nextFilters);setSort('pa');setDirection('desc');setPage(1);setLimit('50');setSearchResponse({key:resourceKey(snapshotId,nextQuery),value:found});});
+        flushSync(()=>{setFilters(nextFilters);setSort(nextSort.sort);setDirection(nextSort.direction);setPage(1);setLimit('50');setSearchResponse({key:resourceKey(snapshotId,nextQuery),value:found});});
         return found;
       },
     });
@@ -548,7 +559,7 @@ export default function Home() {
     return () => {
       lifecycle.abort();
     };
-  }, [snapshotId, displayedRoleIds]);
+  }, [snapshotId, displayedRoleIds, columnIds]);
 
   return (
     <main className="scout-app">

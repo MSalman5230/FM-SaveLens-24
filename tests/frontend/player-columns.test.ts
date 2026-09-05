@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import type { RoleCatalog } from '../../web/lib/scout-api.ts';
-import { columnMatches, defaultColumns, normalizeColumns, playerColumns, restoreColumns, sortAfterColumns, visibleSort } from '../../web/lib/player-columns.ts';
-import { playerQuery } from '../../web/lib/role-ratings.ts';
+import { columnMatches, defaultColumns, normalizeColumns, playerColumns, restoreColumns, resolveColumnSort, sortAfterColumns, visibleSort } from '../../web/lib/player-columns.ts';
+import { playerQuery, selectRole } from '../../web/lib/role-ratings.ts';
 import { currentValue, resourceKey } from '../../web/lib/snapshot-request.ts';
 
 const catalog = JSON.parse(readFileSync(new URL('../../native/roles.json', import.meta.url), 'utf8')) as RoleCatalog;
@@ -52,6 +52,77 @@ test('removing the sorted column restores a visible sort without disturbing othe
   assert.equal(sortAfterColumns(defaultColumns, 'role:tf-support', 'af-attack'), 'pa');
   assert.equal(sortAfterColumns(['name', 'role:ap-support'], 'role:tf-support', ''), 'name');
   assert.equal(sortAfterColumns(defaultColumns, 'club', ''), 'club');
+});
+
+test('restored views choose a visible default sort, including invalid saved preferences', () => {
+  for (const raw of ['["name","role:af-attack"]', '[]', '["role:unknown"]']) {
+    const ids = restoreColumns(raw, available);
+    assert.deepEqual(resolveColumnSort(ids, 'pa', 'desc', ''), { sort: 'name', direction: 'asc' });
+  }
+  for (const raw of [JSON.stringify(defaultColumns), null, 'broken', '{}', 'null']) {
+    const ids = restoreColumns(raw, available);
+    assert.deepEqual(ids, defaultColumns);
+    assert.deepEqual(resolveColumnSort(ids, 'pa', 'desc', ''), { sort: 'pa', direction: 'desc' });
+  }
+});
+
+test('column edits preserve visible sort directions and reset directions on fallback', () => {
+  const ids = [...defaultColumns, 'role:af-attack', 'role:tf-support'];
+  for (const direction of ['asc', 'desc']) {
+    for (const sort of ['name', 'club', 'pa', 'roleRating', 'role:tf-support']) {
+      assert.deepEqual(resolveColumnSort(ids, sort, direction, 'af-attack'), { sort, direction });
+    }
+  }
+  assert.deepEqual(resolveColumnSort(defaultColumns, 'role:tf-support', 'asc', ''), { sort: 'pa', direction: 'desc' });
+  assert.deepEqual(resolveColumnSort(['name', 'role:af-attack'], 'pa', 'desc', ''), { sort: 'name', direction: 'asc' });
+});
+
+test('selecting a role includes its column before resolving the descending rank', () => {
+  const filters = { q: 'Ali', club: '42', position: '12', role: '', roleMin: '' };
+  const role = 'af-attack';
+  const ids = normalizeColumns(['name', `role:${role}`], available);
+  const selected = selectRole(filters, 'name', 'asc', role);
+  const sorting = resolveColumnSort(ids, selected.sort, selected.direction, selected.filters.role);
+  assert.deepEqual(sorting, { sort: 'roleRating', direction: 'desc' });
+  assert.ok(ids.includes(visibleSort(sorting.sort, role)));
+  assert.deepEqual(selected.filters, { ...filters, role });
+  assert.equal(selected.page, 1);
+});
+
+test('clearing role filters falls back visibly while retaining independent visible sorts', () => {
+  const filters = { q: 'Ali', club: '42', role: 'af-attack', roleMin: '70.5' };
+  const cleared = selectRole(filters, 'roleRating', 'asc', '');
+  assert.deepEqual(cleared.filters, { ...filters, role: '', roleMin: '' });
+  assert.equal(cleared.page, 1);
+  for (const [ids, expected] of [
+    [defaultColumns, { sort: 'pa', direction: 'desc' }],
+    [['name', 'role:af-attack'], { sort: 'name', direction: 'asc' }],
+  ] as const) {
+    assert.deepEqual(resolveColumnSort([...ids], cleared.sort, cleared.direction, ''), expected);
+    // Resetting all filters clears the role before resolving the current sort.
+    assert.deepEqual(resolveColumnSort([...ids], 'roleRating', 'asc', ''), expected);
+  }
+  const independent = selectRole(filters, 'role:tf-support', 'asc', '');
+  assert.deepEqual(resolveColumnSort(['name', 'role:tf-support'], independent.sort, independent.direction, ''), {
+    sort: 'role:tf-support', direction: 'asc',
+  });
+});
+
+test('browser search queries and scoped results use the visible default sort', () => {
+  for (const withPA of [true, false]) {
+    const ids = withPA ? [...defaultColumns, 'role:af-attack'] : ['name', 'role:af-attack'];
+    const sorting = resolveColumnSort(ids, 'pa', 'desc', '');
+    const filters = { q: 'Ali', paMin: '150', role: '', roleMin: '' };
+    const query = playerQuery(filters, sorting.sort, sorting.direction, 1, '50', ['af-attack']);
+    const expected = new URLSearchParams({
+      sort: withPA ? 'pa' : 'name', direction: withPA ? 'desc' : 'asc', page: '1', limit: '50',
+      q: 'Ali', paMin: '150', roles: 'af-attack',
+    }).toString();
+    assert.equal(query, expected);
+    const found = { total: 1, players: [{ id: 7 }], page: 1, limit: 50 };
+    const response = { key: resourceKey('saveA', query), value: found };
+    assert.equal(currentValue(response, resourceKey('saveA', expected)), found);
+  }
 });
 
 test('responses for an old set of role columns cannot appear in the new view or save', () => {

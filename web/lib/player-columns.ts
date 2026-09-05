@@ -44,3 +44,11 @@ export function visibleSort(sort: string, selectedRole: string): string {
 export function sortAfterColumns(ids: string[], sort: string, selectedRole: string): string {
   return ids.includes(visibleSort(sort, selectedRole)) ? sort : ids.includes('pa') ? 'pa' : 'name';
 }
+
+export function resolveColumnSort(ids: string[], sort: string, direction: string, selectedRole: string) {
+  const nextSort = sortAfterColumns(ids, sort, selectedRole);
+  return {
+    sort: nextSort,
+    direction: nextSort === sort ? direction : nextSort === 'name' ? 'asc' : 'desc',
+  };
+}
