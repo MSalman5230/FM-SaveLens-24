@@ -1,5 +1,7 @@
 use fm_savelens_backend::{
-    rating_systems::{allowed_attribute, validate_roles, RatingStore, BUILTIN, BUILTIN_ID},
+    rating_systems::{
+        allowed_attribute, validate_roles, RatingStore, BUILTIN, BUILTIN_ID, DEFAULT_ID, HYBRID,
+    },
     roles::ROLES,
     service,
 };
@@ -83,7 +85,7 @@ fn copies_are_independent_and_persist_the_active_system_without_touching_setting
     let dir = tempfile::tempdir().unwrap();
     fs::write(dir.path().join("settings.json"), b"legacy settings").unwrap();
     let mut store = RatingStore::load(dir.path()).unwrap();
-    assert_eq!(store.active_system_id, BUILTIN_ID);
+    assert_eq!(store.active_system_id, DEFAULT_ID);
     let first = store.create(&json!({"name":"My system"})).unwrap();
     let second = store
         .create(&json!({"name":"Second system", "sourceId":first.id}))
@@ -105,7 +107,7 @@ fn copies_are_independent_and_persist_the_active_system_without_touching_setting
     assert_eq!(store.find(&second.id).unwrap().roles.len(), 85);
     assert_eq!(
         serde_json::to_value(&store.find(&second.id).unwrap().roles).unwrap(),
-        serde_json::to_value(&BUILTIN.roles).unwrap()
+        serde_json::to_value(&HYBRID.roles).unwrap()
     );
     assert!(store.create(&json!({"name":" MY SYSTEM "})).is_err());
     assert!(store
@@ -146,7 +148,7 @@ fn copies_are_independent_and_persist_the_active_system_without_touching_setting
     loaded.persist(dir.path()).unwrap();
     assert_eq!(
         RatingStore::load(dir.path()).unwrap().active_system_id,
-        BUILTIN_ID
+        DEFAULT_ID
     );
 }
 
@@ -244,7 +246,7 @@ async fn api_handles_complete_catalogs_conflicts_restart_and_atomic_write_failur
     let client = reqwest::Client::new();
     let url = server.url();
     let list = request(&client, &url, GET, "/rating-systems", None, 200).await;
-    assert_eq!(list["activeSystemId"], BUILTIN_ID);
+    assert_eq!(list["activeSystemId"], DEFAULT_ID);
     assert_eq!(list["catalog"]["roles"].as_array().unwrap().len(), 85);
     // An unwritable destination must not publish the proposed state in memory.
     let path = dir.path().join("rating-systems.json");
@@ -284,7 +286,7 @@ async fn api_handles_complete_catalogs_conflicts_restart_and_atomic_write_failur
     let endpoint = format!("/rating-systems/{id}");
     assert_eq!(
         request(&client, &url, GET, "/roles", None, 200).await["systemId"],
-        BUILTIN_ID
+        DEFAULT_ID
     );
     let updated = request(
         &client,
@@ -377,6 +379,6 @@ async fn api_handles_complete_catalogs_conflicts_restart_and_atomic_write_failur
     )
     .await;
     let removed = request(&client, &url, DELETE, &endpoint, None, 200).await;
-    assert_eq!(removed["activeSystemId"], BUILTIN_ID);
+    assert_eq!(removed["activeSystemId"], DEFAULT_ID);
     server.shutdown().await.unwrap();
 }

@@ -10,6 +10,7 @@ use serde_json::{json, Value};
 use std::{collections::HashSet, fs, io::Write, path::Path, sync::LazyLock};
 
 pub const BUILTIN_ID: &str = "role-highlighted-rating";
+pub const DEFAULT_ID: &str = hybrid::SYSTEM_ID;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -202,7 +203,7 @@ impl Default for RatingStore {
     fn default() -> Self {
         Self {
             schema_version: 1,
-            active_system_id: BUILTIN_ID.into(),
+            active_system_id: DEFAULT_ID.into(),
             systems: vec![],
         }
     }
@@ -268,7 +269,7 @@ impl RatingStore {
     }
 
     pub fn create(&mut self, body: &Value) -> Result<RatingSystem> {
-        let source = self.find(body["sourceId"].as_str().unwrap_or(BUILTIN_ID))?;
+        let source = self.find(body["sourceId"].as_str().unwrap_or(DEFAULT_ID))?;
         let mut system = source.clone();
         system.id = uuid::Uuid::new_v4().to_string();
         system.built_in = false;
@@ -338,7 +339,7 @@ impl RatingStore {
         self.find(id)?;
         self.systems.retain(|system| system.id != id);
         if self.active_system_id == id {
-            self.active_system_id = BUILTIN_ID.into();
+            self.active_system_id = DEFAULT_ID.into();
         }
         Ok(())
     }

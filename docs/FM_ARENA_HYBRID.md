@@ -66,6 +66,6 @@ The existing rating-system endpoints expose the preset and protect it from modif
 
 Unavailable hybrid ratings omit `components`. Original and custom ratings also omit it. Custom copies keep the explicit final weights, remain independent, and use `attribute-weights-v1`; subsequent edits are not represented as a 70/30 blend.
 
-Persistence stays at schema version 1 and stores only custom definitions plus the active system ID. An existing custom system with the new preset's name remains loadable and editable; built-in/custom labels distinguish it in Settings. New naming changes cannot take a reserved preset name. Deleting an active custom system retains the existing fallback to Role Highlighted Rating.
+Persistence stays at schema version 1 and stores only custom definitions plus the active system ID. An existing custom system with the new preset's name remains loadable and editable; built-in/custom labels distinguish it in Settings. New naming changes cannot take a reserved preset name. Deleting an active custom system falls back to FM-Arena Hybrid Rating.
 
 Changes to the evidence, blend, or boosts require a new model version and system revision, with regression checks for SQL/detail agreement and the worked example.

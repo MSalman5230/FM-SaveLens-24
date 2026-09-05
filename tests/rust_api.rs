@@ -472,10 +472,13 @@ async fn api_import_cache_security_and_shutdown() {
     assert_eq!(meta["stale"], false);
     let roles = value(client.get(format!("{url}/api/roles")).send().await.unwrap()).await;
     assert_eq!(roles["roles"].as_array().unwrap().len(), 85);
-    assert_eq!(roles["modelVersion"], "key2-preferable1-v1");
+    assert_eq!(
+        roles["modelVersion"],
+        fm_savelens_backend::hybrid::MODEL_VERSION
+    );
     let role_results = value(client.get(format!("{url}/api/snapshots/{id}/players?role=af-attack&roleMin=60.5&sort=roleRating&limit=5")).send().await.unwrap()).await;
     assert_eq!(role_results["total"], 64);
-    assert_eq!(role_results["players"][0]["roleRating"], 65.0);
+    assert!((role_results["players"][0]["roleRating"].as_f64().unwrap() - 65.0).abs() < 1e-10);
     let player_id = role_results["players"][0]["id"].as_u64().unwrap();
     let detail = value(
         client
@@ -488,10 +491,11 @@ async fn api_import_cache_security_and_shutdown() {
     assert_eq!(detail["roleRatings"].as_array().unwrap().len(), 85);
     let multi = value(client.get(format!("{url}/api/snapshots/{id}/players?roles=af-attack,ap-support,tf-support&sort=role:tf-support&limit=5")).send().await.unwrap()).await;
     assert_eq!(multi["total"], 64);
-    assert_eq!(
-        multi["players"][0]["roleScores"],
-        json!({"af-attack":65.0,"ap-support":65.0,"tf-support":65.0})
-    );
+    let scores = multi["players"][0]["roleScores"].as_object().unwrap();
+    assert_eq!(scores.len(), 3);
+    for role in ["af-attack", "ap-support", "tf-support"] {
+        assert!((scores[role].as_f64().unwrap() - 65.0).abs() < 1e-10);
+    }
     for query in [
         "role=invalid",
         "roleMin=80",

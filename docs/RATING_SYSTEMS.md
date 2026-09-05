@@ -8,7 +8,7 @@ Choose a role and edit individual attribute weights. Technical, Mental, Physical
 
 **Save changes** updates the current custom role and system name. **Save as new role** copies the edited role under a new name, preserving its source, duty, and group. **Save as new system** captures the current draft in an independent system. Unsaved edits can be saved or discarded when changing roles, systems, tabs, or closing Settings. System names are unique; role names are unique for each duty within a system, ignoring case and surrounding whitespace. Names contain 1–100 characters.
 
-**Use system** makes a saved system active across the workspace. Saving an inactive system does not activate it. The active system supplies player filters, sorting, table columns, and profile breakdowns. Only custom systems and added roles can be deleted; deleting an active custom system restores Role Highlighted Rating. Settings → General retains the save-folder controls.
+**Use system** makes a saved system active across the workspace. Saving an inactive system does not activate it. The active system supplies player filters, sorting, table columns, and profile breakdowns. Only custom systems and added roles can be deleted; deleting an active custom system restores FM-Arena Hybrid Rating. Settings → General retains the save-folder controls.
 
 ## Calculation
 
@@ -22,13 +22,13 @@ SQL and player-detail calculations use the same validated weight maps. Null scor
 
 `rating-systems.json` lives in the existing application data directory. Its version-1 structure contains `schemaVersion`, `activeSystemId`, and custom `systems`. Both built-in systems are supplied by bundled definitions and are not editable. Systems contain `id`, `name`, `revision`, `builtIn`, and complete `roles` with explicit `weights` maps. Copies preserve role IDs; added roles use `custom-<UUID>` IDs. Existing custom names that collide with a newly bundled preset remain loadable; new naming changes cannot use reserved preset names.
 
-Writes are atomic and published to memory only after successful persistence. Folder changes and imports leave rating systems intact. Existing installations default to `role-highlighted-rating`; snapshots need no migration or reimport. Saved calculations are reusable definitions, not frozen player results. Malformed or unsupported persisted definitions fail loading without overwriting the file.
+Writes are atomic and published to memory only after successful persistence. Folder changes and imports leave rating systems intact. Workspaces without a saved selection default to `fm-arena-hybrid-rating`; saved selections are preserved; snapshots need no migration or reimport. Saved calculations are reusable definitions, not frozen player results. Malformed or unsupported persisted definitions fail loading without overwriting the file.
 
 ## API
 
 - `GET /api/rating-systems`: system summaries, `activeSystemId`, and the active `catalog`.
 - `GET /api/rating-systems/:id`: full system definition.
-- `POST /api/rating-systems`: create a system with `{name, sourceId?, roles?}`. The default source is the built-in system. Omitted roles copy the source; supplied roles capture a draft. Returns the created system with status 201.
+- `POST /api/rating-systems`: create a system with `{name, sourceId?, roles?}`. The default source is FM-Arena Hybrid Rating. Omitted roles copy the source; supplied roles capture a draft. Returns the created system with status 201.
 - `PUT /api/rating-systems/:id`: update `{name, revision, roles?}`. The revision must match; stale writes return 409. Successful updates increment the revision and return the saved system.
 - `PUT /api/rating-systems/active`: activate `{systemId}` and return the list with its active catalog.
 - `DELETE /api/rating-systems/:id`: delete a custom system and return the updated list/catalog. Built-in modification/deletion and invalid definitions return 400; unknown systems return 404.

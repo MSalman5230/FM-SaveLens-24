@@ -206,7 +206,7 @@ fn missing_positive_weights_invalidate_both_score_and_components_but_exclusions_
 fn registry_preserves_defaults_protects_both_presets_and_copies_independently() {
     let dir = tempfile::tempdir().unwrap();
     let mut store = RatingStore::load(dir.path()).unwrap();
-    assert_eq!(store.active_system_id, BUILTIN_ID);
+    assert_eq!(store.active_system_id, hybrid::SYSTEM_ID);
     assert_eq!(store.list()["systems"].as_array().unwrap().len(), 2);
     let original_catalog = BUILTIN.catalog();
     assert_eq!(original_catalog["modelVersion"], "key2-preferable1-v1");
@@ -225,6 +225,12 @@ fn registry_preserves_defaults_protects_both_presets_and_copies_independently() 
         assert!(store.delete(&preset.id).is_err());
         assert!(store.create(&json!({"name":preset.name})).is_err());
     }
+    store.activate(BUILTIN_ID).unwrap();
+    store.persist(dir.path()).unwrap();
+    assert_eq!(
+        RatingStore::load(dir.path()).unwrap().active().id,
+        BUILTIN_ID
+    );
     store.activate(hybrid::SYSTEM_ID).unwrap();
     store.persist(dir.path()).unwrap();
     let mut store = RatingStore::load(dir.path()).unwrap();
@@ -259,7 +265,7 @@ fn registry_preserves_defaults_protects_both_presets_and_copies_independently() 
     store.persist(dir.path()).unwrap();
     assert_eq!(RatingStore::load(dir.path()).unwrap().active().id, copy.id);
     store.delete(&copy.id).unwrap();
-    assert_eq!(store.active().id, BUILTIN_ID);
+    assert_eq!(store.active().id, hybrid::SYSTEM_ID);
 }
 
 #[test]
