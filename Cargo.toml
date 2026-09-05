@@ -1,6 +1,6 @@
 [package]
 name = "fm-savelens-backend"
-version = "1.1.0"
+version = "1.2.0"
 edition = "2021"
 publish = false
 description = "Read-only Football Manager 2024 save database"
