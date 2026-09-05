@@ -189,6 +189,133 @@ fn snapshot() -> (tempfile::TempDir, PathBuf) {
 }
 
 #[test]
+fn session_cache_matches_uncached_search_and_reuses_both_directions() {
+    let (_dir, path) = snapshot();
+    let before = fs::read(&path).unwrap();
+    let writer = Connection::open(&path).unwrap();
+    writer.execute("UPDATE players SET name=CASE id % 3 WHEN 0 THEN 'ALICE' WHEN 1 THEN 'alice' ELSE 'Bob' END, club=CASE id % 3 WHEN 0 THEN NULL WHEN 1 THEN 'Club' ELSE 'CLUB' END, attr_finishing=CASE WHEN id % 5=0 THEN NULL ELSE attr_finishing END", []).unwrap();
+    let nulls = CATALOG
+        .attributes
+        .iter()
+        .map(|a| format!("attr_{}=NULL", a.key))
+        .collect::<Vec<_>>()
+        .join(",");
+    writer
+        .execute(&format!("UPDATE players SET {nulls} WHERE id=1"), [])
+        .unwrap();
+    drop(writer);
+    let unchanged = fs::read(&path).unwrap();
+    assert_ne!(before, unchanged);
+    let db = storage::open_snapshot(&path).unwrap();
+    let mut custom = fm_savelens_backend::rating_systems::RatingStore::default()
+        .create(&json!({"name":"Cache test"}))
+        .unwrap();
+    let mut added = custom.roles[0].clone();
+    added.id = format!("custom-{}", uuid::Uuid::new_v4());
+    added.weights = Some(serde_json::from_value(json!({"finishing":1.25,"pace":3.75})).unwrap());
+    let added_id = added.id.clone();
+    custom.roles.push(added);
+    let mut systems = fm_savelens_backend::rating_systems::builtins().to_vec();
+    systems.push(&custom);
+    for system in systems {
+        let mut session = storage::SearchSession::open(&path, system).unwrap();
+        let mut sorts = vec![
+            "name",
+            "club",
+            "age",
+            "ca",
+            "pa",
+            "bestRoleRating",
+            "roleRating",
+            "role:af-attack",
+        ];
+        sorts.extend(CATALOG.attributes.iter().map(|a| a.key.as_str()));
+        for sort in sorts {
+            let builds = session.sort_builds();
+            for direction in ["asc", "desc"] {
+                for page in [1, 2, 6, 999] {
+                    let query = format!("sort={sort}&direction={direction}&page={page}&limit=7&role=af-attack&roles=af-attack,ap-support&bestRole=1");
+                    assert_eq!(
+                        session.search(&query).unwrap(),
+                        storage::search_with_system(&db, &query, system).unwrap(),
+                        "{query}"
+                    );
+                }
+            }
+            assert_eq!(
+                session.sort_builds(),
+                builds + usize::from(sort != "role:af-attack"),
+                "{sort}"
+            );
+        }
+        let query = "sort=bestRoleRating&direction=desc&bestRole=1&role=ap-support&roleMin=40&caMin=115&nation=12&position=12&q=alice&limit=7";
+        let paired = session
+            .search(&format!("{query}&includeReversePage=1"))
+            .unwrap();
+        let expected = storage::search_with_system(&db, query, system).unwrap();
+        assert_eq!(paired["players"], expected["players"]);
+        assert_eq!(
+            paired["reversePage"],
+            storage::search_with_system(
+                &db,
+                &query.replace("direction=desc", "direction=asc"),
+                system
+            )
+            .unwrap()
+        );
+        let builds = session.sort_builds();
+        session
+            .search(&query.replace("bestRole=1", "bestRole=0"))
+            .unwrap();
+        assert_eq!(session.sort_builds(), builds);
+        assert!(session.memory_bytes().unwrap() > 0);
+        for role in [&system.roles[64].id, &system.roles.last().unwrap().id] {
+            let query = format!("roles={role}&sort=role:{role}&bestRole=1&includeReversePage=1");
+            assert_eq!(
+                session.search(&query).unwrap(),
+                storage::search_with_system(&db, &query, system).unwrap()
+            );
+        }
+        if system.id == custom.id {
+            assert_eq!(system.roles.last().unwrap().id, added_id);
+        }
+    }
+    assert_eq!(fs::read(&path).unwrap(), unchanged);
+}
+
+#[test]
+fn session_cache_evicts_old_orders_and_validates_every_request() {
+    let (_dir, path) = snapshot();
+    let mut session =
+        storage::SearchSession::open(&path, &fm_savelens_backend::rating_systems::BUILTIN).unwrap();
+    for age in 0..32 {
+        session.search(&format!("ageMin={age}")).unwrap();
+    }
+    assert_eq!(session.sort_builds(), 32);
+    session
+        .search("ageMin=0&direction=asc&limit=7&page=2&bestRole=1")
+        .unwrap();
+    session.search("ageMin=32").unwrap();
+    session.search("ageMin=0").unwrap();
+    assert_eq!(session.sort_builds(), 33);
+    session.search("ageMin=1").unwrap();
+    assert_eq!(session.sort_builds(), 34);
+    for invalid in [
+        "direction=sideways",
+        "includeReversePage=2",
+        "roles=unknown",
+        "page=0",
+        "roleMin=10",
+        "sort=unknown",
+    ] {
+        assert!(session.search(invalid).is_err(), "{invalid}");
+    }
+    assert_eq!(session.sort_builds(), 34);
+    session.search("ageMin=1").unwrap();
+    assert_eq!(session.sort_builds(), 34);
+}
+
+#[test]
 fn best_role_matches_profiles_and_sorts_before_pagination_in_all_systems() {
     use fm_savelens_backend::rating_systems::{builtins, RatingStore, BUILTIN};
     let (_dir, path) = snapshot();

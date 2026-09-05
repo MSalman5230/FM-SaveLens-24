@@ -1,6 +1,6 @@
 "use client";
 import Image from "next/image";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import {
   Search,
@@ -56,6 +56,7 @@ import { activeFilterCount, advancedFilterCount, defaultPositionFilters, selecte
 import type { PositionMatch } from "@/lib/position-filter";
 import { columnStorageKey, legacyColumnStorageKey, defaultColumns, normalizeColumns, playerColumns, restoreColumnPreferences, resolveColumnSort, visibleSort } from "@/lib/player-columns";
 import { currentValue, requestSnapshot, resourceKey } from "@/lib/snapshot-request";
+import { PlayerPageCache } from "@/lib/player-page-cache";
 import type { ScopedValue } from "@/lib/snapshot-request";
 import type {
   Attribute,
@@ -216,7 +217,7 @@ export default function Home() {
     [limit, setLimit] = useState("50");
   const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
   const [searchResponse, setSearchResponse] = useState<ScopedValue<Results> | null>(null),
-    [searching, setSearching] = useState(false),
+    [spinnerKey, setSpinnerKey] = useState<string | null>(null),
     [searchError, setSearchError] = useState("");
   const [attributeKey, setAttributeKey] = useState(""),
     [attributeMin, setAttributeMin] = useState("15");
@@ -230,6 +231,9 @@ export default function Home() {
   const running = jobStatus === "running";
   const systemKey = ratingIdentity(roleCatalog);
   const systemQuery = ratingParams(roleCatalog);
+  const pageCache = useMemo(() => new PlayerPageCache(snapshotId ?? '', roleCatalog), [snapshotId, roleCatalog]);
+  useEffect(() => () => pageCache.clear(), [pageCache]);
+  const previousFilters = useRef(filters);
   const detailKey = resourceKey(snapshotId, `${detailId}:${systemKey}`);
   const detail = currentValue(detailResponse, detailKey);
   const chosen = saves.find((s) => s.id === selected);
@@ -356,16 +360,28 @@ export default function Home() {
   }, [refreshRoleCatalog]);
   const query = useMemo(() => [playerQuery(filters, sort, direction, page, limit, displayedRoleIds, displayBestRole), systemQuery].filter(Boolean).join('&'), [filters, sort, direction, page, limit, displayedRoleIds, displayBestRole, systemQuery]);
   const searchKey = resourceKey(snapshotId, query);
-  const result = currentValue(searchResponse, searchKey);
+  const result = pageCache.peek(query) ?? currentValue(searchResponse, searchKey);
+  const searching = Boolean(snapshotId && roleCatalog && !result && !searchError);
+  const showSearchSpinner = searching && spinnerKey === searchKey;
+  const searchMessage = pageCache.prepared ? 'Searching players…' : 'Preparing player ratings…';
   // Remote request state must reset whenever a new search starts.
   // oxlint-disable-next-line react/react-compiler
   useEffect(() => {
     // oxlint-disable-next-line react/react-compiler -- reset state for this remote request
-    setSearching(Boolean(snapshotId));
+    setSpinnerKey(null);
     setSearchError("");
+    const filtersChanged = previousFilters.current !== filters;
+    previousFilters.current = filters;
     if (!snapshotId || !roleCatalog) return;
-    return requestSnapshot<Results>({
-      path: `/snapshots/${snapshotId}/players?${query}`, request: api, delay: 200,
+    const cached = pageCache.peek(query);
+    if (cached) {
+      void pageCache.load(query, api<Results>); // Touch the LRU without a request.
+      setSearchResponse({ key: searchKey, value: cached });
+      return;
+    }
+    const spinner = setTimeout(() => setSpinnerKey(searchKey), pageCache.prepared ? 150 : 0);
+    const stop = requestSnapshot<Results>({
+      path: query, request: path => pageCache.load(path, api<Results>), delay: filtersChanged ? 200 : 0,
       onValue: value => {
         if (sameRatingSystem(value, roleCatalog)) setSearchResponse({ key: searchKey, value });
         else void refreshRoleCatalog().catch(e => setSearchError(errorText(e)));
@@ -375,9 +391,10 @@ export default function Home() {
         if (e instanceof ApiError && e.status === 409) void refreshRoleCatalog().catch(error => setSearchError(errorText(error)));
         else setSearchError(errorText(e));
       },
-      onSettled: () => setSearching(false),
+      onSettled: () => { clearTimeout(spinner); setSpinnerKey(null); },
     });
-  }, [snapshotId, query, searchKey, roleCatalog, refreshRoleCatalog]);
+    return () => { clearTimeout(spinner); stop(); };
+  }, [snapshotId, query, searchKey, roleCatalog, refreshRoleCatalog, pageCache, filters]);
   // Clear the previous player's remote data before requesting another identity.
   // oxlint-disable-next-line react/react-compiler
   useEffect(() => {
@@ -580,8 +597,8 @@ export default function Home() {
           throw new Error("Potential must be 1–200.");
         const nextFilters = { ...defaultFilters, q, paMin: String(pa) };
         const nextSort = resolveColumnSort(columnIds, 'pa', 'desc', '');
-        const nextQuery = playerQuery(nextFilters, nextSort.sort, nextSort.direction, 1, '50', displayedRoleIds);
-        const found = await api<Results>(`/snapshots/${snapshotId}/players?${nextQuery}`);
+        const nextQuery = [playerQuery(nextFilters, nextSort.sort, nextSort.direction, 1, '50', displayedRoleIds, displayBestRole), systemQuery].filter(Boolean).join('&');
+        const found = await pageCache.load(nextQuery, api<Results>);
         if (lifecycle.signal.aborted) throw new Error('The active save or view changed.');
         flushSync(()=>{setFilters(nextFilters);setSort(nextSort.sort);setDirection(nextSort.direction);setPage(1);setLimit('50');setSearchResponse({key:resourceKey(snapshotId,nextQuery),value:found});});
         return found;
@@ -609,7 +626,7 @@ export default function Home() {
     return () => {
       lifecycle.abort();
     };
-  }, [snapshotId, displayedRoleIds, columnIds]);
+  }, [snapshotId, displayedRoleIds, columnIds, displayBestRole, systemQuery, pageCache]);
 
   return (
     <main className="scout-app">
@@ -904,9 +921,9 @@ export default function Home() {
             <div className="results-tools">
               <PlayerColumnChooser columns={availableColumns} selected={columnIds} onChange={changeColumns} disabled={!roleCatalog} />
               <output className="search-status">
-              {searching && (
+              {showSearchSpinner && (
                 <>
-                  <LoaderCircle className="spin" size={14} /> Searching
+                  <LoaderCircle className="spin" size={14} /> {searchMessage}
                 </>
               )}
               </output>
@@ -923,7 +940,7 @@ export default function Home() {
                   roles={roleCatalog?.roles ?? []}
                   sort={visibleSort(sort, filters.role)} direction={direction} onSort={changeSort} onOpen={openPlayer} />
               </div>
-              {(!snapshot || !result?.players.length) && (
+              {(!snapshot || (result && !result.players.length) || showSearchSpinner) && (
                 <div className="empty-state">
                   {initializing || searching ? (
                     <LoaderCircle className="spin" size={30} />
@@ -936,7 +953,7 @@ export default function Home() {
                       : !snapshot
                         ? "Your next signing starts here"
                         : searching
-                          ? "Searching players…"
+                          ? searchMessage
                           : "No players match these filters"}
                   </h3>
                   <p>

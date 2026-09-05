@@ -123,8 +123,20 @@ struct Inner {
 pub struct AppState {
     data: PathBuf,
     inner: Mutex<Inner>,
+    searches: Mutex<Option<SearchContext>>,
+    #[cfg(test)]
+    search_preparations: std::sync::atomic::AtomicUsize,
     _lock: File,
 }
+struct SearchContext {
+    snapshot: String,
+    system_id: String,
+    revision: u64,
+    session: Arc<Mutex<Option<storage::SearchSession>>>,
+}
+#[cfg(test)]
+mod search_tests;
+
 impl AppState {
     pub fn open(data: &Path) -> Result<Arc<Self>> {
         fs::create_dir_all(data)?;
@@ -168,6 +180,9 @@ impl AppState {
         let ratings = RatingStore::load(&data)?;
         let app = Arc::new(Self {
             data,
+            searches: Mutex::new(None),
+            #[cfg(test)]
+            search_preparations: std::sync::atomic::AtomicUsize::new(0),
             inner: Mutex::new(Inner {
                 settings,
                 ratings,
@@ -187,6 +202,48 @@ impl AppState {
         file.persist(self.data.join("settings.json"))
             .map_err(|e| Error::from(e.error))?;
         Ok(())
+    }
+    fn search_players(
+        &self,
+        snapshot: &str,
+        query: &str,
+        system: &crate::rating_systems::RatingSystem,
+    ) -> Result<Value> {
+        let path = self.db_path(snapshot)?;
+        let session = {
+            let mut context = self.searches.lock().unwrap();
+            if context.as_ref().is_none_or(|context| {
+                context.snapshot != snapshot
+                    || context.system_id != system.id
+                    || context.revision != system.revision
+            }) {
+                *context = Some(SearchContext {
+                    snapshot: snapshot.into(),
+                    system_id: system.id.clone(),
+                    revision: system.revision,
+                    session: Arc::new(Mutex::new(None)),
+                });
+            }
+            context.as_ref().unwrap().session.clone()
+        };
+        // Serialize work only for this snapshot/rating context. Other API calls
+        // and newly selected contexts remain responsive while ratings prepare.
+        let mut session = session.lock().unwrap();
+        if session.is_none() {
+            *session = Some(storage::SearchSession::open(&path, system)?);
+            #[cfg(test)]
+            self.search_preparations
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        }
+        session.as_mut().unwrap().search(query)
+    }
+    fn retain_rating_cache(&self, system: &crate::rating_systems::RatingSystem) {
+        let mut context = self.searches.lock().unwrap();
+        if context.as_ref().is_some_and(|context| {
+            context.system_id != system.id || context.revision != system.revision
+        }) {
+            context.take();
+        }
     }
     fn list(&self, folder: &str) -> Result<Vec<SaveFile>> {
         if folder.is_empty() {
@@ -430,6 +487,7 @@ impl AppState {
                 next.activate(body["systemId"].as_str().unwrap_or(""))?;
                 next.persist(&self.data)?;
                 inner.ratings = next;
+                self.retain_rating_cache(inner.ratings.active());
                 Ok((200, inner.ratings.list()))
             }
             ("GET", "/api/settings") => {
@@ -459,6 +517,7 @@ impl AppState {
                 };
                 self.persist(&settings)?;
                 inner.settings = settings.clone();
+                self.searches.lock().unwrap().take();
                 Ok((200, json!(settings)))
             }
             ("GET", "/api/saves") => {
@@ -487,6 +546,7 @@ impl AppState {
                     };
                     next.persist(&self.data)?;
                     inner.ratings = next;
+                    self.retain_rating_cache(inner.ratings.active());
                     return Ok((200, result));
                 }
                 if parts.len() == 3 && parts[1] == "imports" {
@@ -527,8 +587,17 @@ impl AppState {
                         }
                     }
                     let result = match parts.len() {
-                        3 => storage::metadata(&db)?,
-                        4 => storage::search_with_system(&db, query, &system)?,
+                        3 => {
+                            let mut context = self.searches.lock().unwrap();
+                            if context
+                                .as_ref()
+                                .is_some_and(|context| context.snapshot != parts[2])
+                            {
+                                context.take();
+                            }
+                            storage::metadata(&db)?
+                        }
+                        4 => self.search_players(parts[2], query, &system)?,
                         _ => storage::player_with_system(
                             &db,
                             parts[4]

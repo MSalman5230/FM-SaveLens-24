@@ -102,6 +102,7 @@ export type Results = RatingIdentity & {
   page: number;
   limit: number;
   players: Player[];
+  reversePage?: Omit<Results, 'reversePage'>;
 };
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);

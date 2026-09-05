@@ -14,6 +14,8 @@ Use **Edit columns** above the player list to tick player details and any number
 
 The default **Best role rating** column shows each player's highest available score across every role and duty in the active rating system, such as **85.4 (AF)**. AF means Advanced Forward, AP Advanced Playmaker, and CD Central Defender; duty is omitted from the abbreviation. Hover for the full role and duty, click the score for its breakdown, or click the heading to sort all matching players. Position and role filters restrict players without restricting which roles compete for their best score. A dash means no role rating is available. Existing column views gain this column once; you can hide it afterward in **Edit columns**.
 
+Opening a save prepares its role ratings in memory once. Player searches reuse those ratings, and ascending/descending sorts share the same ordering. The first page also loads its opposite direction, so switching back and forth displays cached results without a searching spinner. The backend retains 32 recent sort/filter combinations and the UI retains 64 pages. Caches reset when switching saves or rating definitions, restarting, or evicting older entries; imported saves stay read-only and no additional cache files are written.
+
 In **Settings → Rating systems**, copy the protected **Role Highlighted Rating** preset to create a named system with your own attribute weights. Include standard attributes, both foot strengths, and Consistency; use zero to exclude an attribute. Save edited roles as new roles, then choose **Use system** to apply your weights to player ratings, filters, sorting, and columns. Systems stay saved locally across imports and restarts. See [custom rating systems](docs/RATING_SYSTEMS.md).
 
 ## How to run

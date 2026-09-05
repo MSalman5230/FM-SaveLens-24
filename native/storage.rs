@@ -13,6 +13,10 @@ use std::{
 use tokio_util::sync::CancellationToken;
 use unicode_normalization::{char::is_combining_mark, UnicodeNormalization};
 
+mod search_cache;
+use search_cache::OrderCache;
+pub use search_cache::SearchSession;
+
 static COUNTRIES: LazyLock<HashMap<String, String>> = LazyLock::new(|| {
     serde_json::from_str(include_str!("../server/parser/nations.json")).expect("country catalog")
 });
@@ -191,6 +195,22 @@ pub fn search_with_system(
     query: &str,
     system: &crate::rating_systems::RatingSystem,
 ) -> Result<Value> {
+    search_impl(db, query, system, None)
+}
+
+fn search_impl(
+    db: &Connection,
+    query: &str,
+    system: &crate::rating_systems::RatingSystem,
+    mut cache: Option<&mut OrderCache>,
+) -> Result<Value> {
+    let score_sql = |role: &crate::roles::Role| {
+        if cache.is_some() {
+            search_cache::score_column(system, role)
+        } else {
+            role.sql_score()
+        }
+    };
     let mut params = HashMap::new();
     for (k, v) in url::form_urlencoded::parse(query.as_bytes()) {
         params.entry(k.into_owned()).or_insert(v.into_owned());
@@ -218,7 +238,7 @@ pub fn search_with_system(
         .filter(|s| !s.is_empty())
         .map(|id| system.find(id))
         .transpose()?;
-    let score_expression = role.map(|r| r.sql_score());
+    let score_expression = role.map(score_sql);
     let mut displayed_roles = vec![];
     if let Some(ids) = params.get("roles").filter(|s| !s.is_empty()) {
         for id in ids.split(',') {
@@ -336,14 +356,17 @@ pub fn search_with_system(
         "name" => "name COLLATE NOCASE".into(),
         "club" => "club COLLATE NOCASE".into(),
         "age" | "ca" | "pa" => sort.to_string(),
+        "bestRoleRating" if cache.is_some() => {
+            "(SELECT score FROM session.best WHERE id=players.id)".into()
+        }
         "bestRoleRating" => best_role_expression(system),
         "roleRating" => {
             if role.is_none() {
                 return Err(Error::query("Select a role before sorting by role rating."));
             }
-            "roleRating".into()
+            score_expression.clone().unwrap()
         }
-        key if key.starts_with("role:") => system.find(&key[5..])?.sql_score(),
+        key if key.starts_with("role:") => score_sql(system.find(&key[5..])?),
         key if CATALOG.attributes.iter().any(|a| a.key == key) => format!("attr_{key}"),
         _ => return Err(Error::query("Unsupported sort column.")),
     };
@@ -358,17 +381,12 @@ pub fn search_with_system(
     let page = integer("page", 1, 100000)?.unwrap_or(1);
     let limit = integer("limit", 1, 250)?.unwrap_or(100);
     let include_best_role = integer("bestRole", 0, 1)? == Some(1);
+    let include_reverse = integer("includeReversePage", 0, 1)? == Some(1);
     let condition = if clauses.is_empty() {
         String::new()
     } else {
         format!("WHERE {}", clauses.join(" AND "))
     };
-    let total: i64 = db.query_row(
-        &format!("SELECT COUNT(*) FROM players {condition}"),
-        params_from_iter(&args),
-        |r| r.get(0),
-    )?;
-    args.extend([limit.into(), ((page - 1) * limit).into()]);
     let score_select = score_expression.as_deref().unwrap_or("NULL");
     let null_order = if matches!(sort, "roleRating" | "bestRoleRating") || sort.starts_with("role:")
     {
@@ -376,7 +394,34 @@ pub fn search_with_system(
     } else {
         ""
     };
-    let mut stmt=db.prepare(&format!("SELECT id,uid,name,age,club_id,club,nations,positions,ca,pa,{score_select} AS roleRating FROM players {condition} ORDER BY {column} {direction}{null_order}, ca DESC, id ASC LIMIT ? OFFSET ?"))?;
+    let (total, selection) = if let Some(orders) = cache.as_deref_mut() {
+        let order = orders.get(db, &condition, &args, &column, !null_order.is_empty())?;
+        let ids = order.page(direction == "desc", page, limit);
+        args.clear();
+        // IDs originate in SQLite, never in user input. Ordinals preserve the
+        // cached order without sorting the full player set again.
+        let selection = if ids.is_empty() {
+            "WHERE 0".to_string()
+        } else {
+            let values = ids
+                .iter()
+                .enumerate()
+                .map(|(i, id)| format!("({id},{i})"))
+                .collect::<Vec<_>>()
+                .join(",");
+            format!("JOIN (SELECT column1 AS selected_id,column2 AS ordinal FROM (VALUES {values})) selected ON selected_id=players.id ORDER BY ordinal")
+        };
+        (order.len() as i64, selection)
+    } else {
+        let total: i64 = db.query_row(
+            &format!("SELECT COUNT(*) FROM players {condition}"),
+            params_from_iter(&args),
+            |r| r.get(0),
+        )?;
+        args.extend([limit.into(), ((page - 1) * limit).into()]);
+        (total, format!("{condition} ORDER BY {column} {direction}{null_order}, ca DESC, id ASC LIMIT ? OFFSET ?"))
+    };
+    let mut stmt=db.prepare(&format!("SELECT id,uid,name,age,club_id,club,nations,positions,ca,pa,{score_select} AS roleRating FROM players {selection}"))?;
     let rows = stmt.query_map(params_from_iter(&args), |r| {
         Ok((
             r.get::<_, u32>(0)?,
@@ -403,9 +448,9 @@ pub fn search_with_system(
         }
         players.push(player);
     }
-    // Display scores are evaluated only for this page. Sorting/filtering above
-    // still evaluates the requested score across the entire matching set.
-    let score_roles = if include_best_role {
+    // Hydrate only this page's displayed scores. A session reads materialized
+    // values; the uncached reference path evaluates the original expressions.
+    let score_roles = if include_best_role && cache.is_none() {
         system.roles.iter().collect::<Vec<_>>()
     } else {
         displayed_roles.clone()
@@ -421,7 +466,13 @@ pub fn search_with_system(
         for batch in score_roles.chunks(64) {
             let expressions = batch
                 .iter()
-                .map(|r| r.sql_score())
+                .map(|r| {
+                    if cache.is_some() {
+                        search_cache::score_column(system, r)
+                    } else {
+                        r.sql_score()
+                    }
+                })
                 .collect::<Vec<_>>()
                 .join(",");
             let mut scores = db.prepare(&format!(
@@ -447,15 +498,38 @@ pub fn search_with_system(
         if !displayed_roles.is_empty() {
             attach_role_scores(&mut players, &by_player, &displayed_roles);
         }
-        if include_best_role {
+        if include_best_role && cache.is_none() {
             for player in &mut players {
                 let id = player["id"].as_u64().unwrap() as u32;
                 player["bestRole"] = best_role(by_player.get(&id));
             }
         }
     }
+    if include_best_role && cache.is_some() {
+        let mut best = db.prepare("SELECT role_id,score FROM session.best WHERE id=?")?;
+        for player in &mut players {
+            player["bestRole"] = best.query_row([player["id"].as_u64().unwrap()], |row| {
+                let role_id: Option<String> = row.get(0)?;
+                let score: Option<f64> = row.get(1)?;
+                Ok(role_id.map_or(
+                    Value::Null,
+                    |role_id| json!({"roleId":role_id,"score":score}),
+                ))
+            })?;
+        }
+    }
     let mut result = json!({"total":total,"page":page,"limit":limit,"players":players});
     system.tag(&mut result);
+    if include_reverse {
+        let reverse_direction = if direction == "asc" { "desc" } else { "asc" };
+        params.insert("includeReversePage".into(), "0".into());
+        params.insert("page".into(), "1".into());
+        params.insert("direction".into(), reverse_direction.into());
+        let reverse_query = url::form_urlencoded::Serializer::new(String::new())
+            .extend_pairs(&params)
+            .finish();
+        result["reversePage"] = search_impl(db, &reverse_query, system, cache)?;
+    }
     Ok(result)
 }
 

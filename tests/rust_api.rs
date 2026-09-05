@@ -3,8 +3,10 @@ use fm_savelens_backend::service;
 use serde_json::{json, Value};
 use std::{fs, time::Duration};
 async fn value(response: reqwest::Response) -> Value {
-    assert!(response.status().is_success(), "{}", response.status());
-    response.json().await.unwrap()
+    let status = response.status();
+    let value = response.json().await.unwrap();
+    assert!(status.is_success(), "{status}: {value}");
+    value
 }
 
 async fn select_save(client: &reqwest::Client, url: &str, games: &std::path::Path) -> Value {
