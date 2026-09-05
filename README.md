@@ -18,6 +18,10 @@ Opening a save prepares its role ratings in memory once. Player searches reuse t
 
 In **Settings → Rating systems**, copy the protected **Role Highlighted Rating** preset to create a named system with your own attribute weights. Include standard attributes, both foot strengths, and Consistency; use zero to exclude an attribute. Save edited roles as new roles, then choose **Use system** to apply your weights to player ratings, filters, sorting, and columns. Systems stay saved locally across imports and restarts. See [custom rating systems](docs/RATING_SYSTEMS.md).
 
+In **Settings → General → Cache**, see disk usage and cached-save count, backend cache memory, and an estimate of the current window's result-cache memory in MB/GB. Readings refresh while Settings is visible. These are cache measurements, not total application or browser RAM.
+
+**Clear all cache** removes parsed-save snapshots from this workspace and releases its cached ratings/results. Confirming closes the loaded save; choose **Read save** to import it again. Other open windows discard their cached results within five seconds while visible, or when brought back into view. Original `.fm` files, rating systems, and preferences are preserved. Finish or cancel an import before clearing. If files cannot be removed, Settings reports the remaining usage and allows retry. Completed snapshots otherwise remain on disk until manually cleared; there is no automatic disk quota or age-based cleanup. Browser/WebView assets, logs, and OS caches are outside this action, and runtimes may retain released memory for reuse.
+
 ## How to run
 
 Download a build from [GitHub Releases](https://github.com/MSalman5230/FM-SaveLens-24/releases). Packaged builds need neither Node.js nor Rust.

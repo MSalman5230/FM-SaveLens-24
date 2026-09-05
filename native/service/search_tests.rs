@@ -1,7 +1,7 @@
 use super::*;
 use std::sync::atomic::Ordering;
 
-fn source(app: &AppState, id: &str) {
+pub(super) fn source(app: &AppState, id: &str) {
     let db = rusqlite::Connection::open(app.data.join("snapshots").join(format!("{id}.sqlite")))
         .unwrap();
     let attributes = crate::parser::CATALOG

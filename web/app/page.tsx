@@ -47,6 +47,8 @@ import { watchSnapshotFocus } from "@/lib/focus-refresh";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { RoleRatings } from "@/components/role-ratings";
 import { RatingSystemSettings } from "@/components/rating-system-settings";
+import { CacheSettings } from "@/components/cache-settings";
+import { CacheLifecycle, isCacheAbort, watchCacheRevision, type CacheClearResult } from "@/lib/cache";
 import { playerSearchQuery, ratingIdentity, ratingParams, reconcileRatingView, sameRatingSystem } from "@/lib/rating-systems";
 import { roleLabel, selectRole } from "@/lib/role-ratings";
 import { PlayerColumnChooser } from "@/components/player-column-chooser";
@@ -183,6 +185,9 @@ function ratingClass(v: number | null | undefined) {
 }
 
 export default function Home() {
+  const [cacheLifecycle] = useState(() => new CacheLifecycle());
+  const cacheApi = cacheLifecycle.request;
+  const [clearingCache, setClearingCache] = useState(false);
   const [saves, setSaves] = useState<SaveFile[]>([]),
     [selected, setSelected] = useState(""),
     [folder, setFolder] = useState("");
@@ -249,25 +254,26 @@ export default function Home() {
     );
   }, []);
   const refresh = useCallback(async (preferSnapshot?: string) => {
-    const list = await api<{ saves: SaveFile[] }>("/saves");
+    const list = await cacheApi<{ saves: SaveFile[] }>("/saves");
     applySaves(list.saves, preferSnapshot);
-  }, [applySaves]);
+  }, [applySaves, cacheApi]);
   const loadSnapshot = useCallback(async (id: string) => {
-    const meta = await api<Snapshot>("/snapshots/" + id);
+    const meta = await cacheApi<Snapshot>("/snapshots/" + id);
     setSnapshot(meta);
     setDetailId(null);
     setPage(1);
-  }, []);
+  }, [cacheApi]);
   useEffect(() => {
     let live = true;
     void (async () => {
       try {
         const [settings, catalog, roles] = await Promise.all([
-          api<{ folder: string; lastSnapshot?: string; activeJob: Job | null }>("/settings"),
+          cacheApi<{ folder: string; lastSnapshot?: string; activeJob: Job | null; cacheRevision: string }>("/settings"),
           api<{ attributes: Attribute[]; positions: string[] }>("/attributes"),
           api<RoleCatalog>("/roles"),
         ]);
         if (!live) return;
+        cacheLifecycle.observe(settings.cacheRevision);
         setFolder(settings.folder);
         if (!settings.folder) {
           setFolderDraft("");
@@ -289,7 +295,7 @@ export default function Home() {
         await refresh(settings.lastSnapshot);
         if (settings.lastSnapshot) await loadSnapshot(settings.lastSnapshot);
       } catch (e) {
-        if (live) setError(errorText(e));
+        if (live && !isCacheAbort(e)) setError(errorText(e));
       } finally {
         if (live) setInitializing(false);
       }
@@ -297,14 +303,14 @@ export default function Home() {
     return () => {
       live = false;
     };
-  }, [refresh, loadSnapshot]);
+  }, [refresh, loadSnapshot, cacheLifecycle, cacheApi]);
   useEffect(() => {
-    if (!jobId || jobStatus !== "running") return;
+    if (!jobId || jobStatus !== "running" || clearingCache) return;
     let cancelled = false,
       timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
       try {
-        const next = await api<Job>("/imports/" + jobId);
+        const next = await cacheApi<Job>("/imports/" + jobId);
         if (cancelled) return;
         setJob(next);
         if (next.status === "complete") {
@@ -314,7 +320,7 @@ export default function Home() {
         } else if (next.status === "error") setError(next.message);
         else if (next.status === "running") timer = setTimeout(poll, 450);
       } catch (e) {
-        if (!cancelled) {
+        if (!cancelled && !isCacheAbort(e)) {
           setError(errorText(e));
           timer = setTimeout(poll, 2000);
         }
@@ -325,18 +331,18 @@ export default function Home() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [jobId, jobStatus, loadSnapshot, refresh]);
+  }, [jobId, jobStatus, loadSnapshot, refresh, cacheApi, clearingCache]);
   // Recheck the source when returning to the app after playing or saving in FM.
   useEffect(() => {
-    if (!snapshotId) return;
+    if (!snapshotId || clearingCache) return;
     return watchSnapshotFocus({
       target: window,
       snapshotId,
-      request: api,
+      request: cacheApi,
       setSnapshot,
       setSaves: applySaves,
     });
-  }, [snapshotId, applySaves]);
+  }, [snapshotId, applySaves, cacheApi, clearingCache]);
   const [viewSystemKey, setViewSystemKey] = useState('');
   if (roleCatalog && viewSystemKey !== systemKey) {
     setViewSystemKey(systemKey);
@@ -381,21 +387,22 @@ export default function Home() {
     setSearchError("");
     const filtersChanged = previousFilters.current !== filters;
     previousFilters.current = filters;
-    if (!snapshotId || !roleCatalog) return;
+    if (!snapshotId || !roleCatalog || clearingCache) return;
     const cached = pageCache.peek(query);
     if (cached) {
-      void pageCache.load(query, api<Results>); // Touch the LRU without a request.
+      void pageCache.load(query, cacheApi<Results>); // Touch the LRU without a request.
       setSearchResponse({ key: searchKey, value: cached });
       return;
     }
     const spinner = setTimeout(() => setSpinnerKey(searchKey), pageCache.prepared ? 150 : 0);
     const stop = requestSnapshot<Results>({
-      path: query, request: path => pageCache.load(path, api<Results>), delay: filtersChanged ? 200 : 0,
+      path: query, request: path => pageCache.load(path, cacheApi<Results>), delay: filtersChanged ? 200 : 0,
       onValue: value => {
         if (sameRatingSystem(value, roleCatalog)) setSearchResponse({ key: searchKey, value });
         else void refreshRoleCatalog().catch(e => setSearchError(errorText(e)));
       },
       onError: e => {
+        if (isCacheAbort(e)) return;
         setSearchResponse(null);
         if (e instanceof ApiError && e.status === 409) void refreshRoleCatalog().catch(error => setSearchError(errorText(error)));
         else setSearchError(errorText(e));
@@ -403,26 +410,27 @@ export default function Home() {
       onSettled: () => { clearTimeout(spinner); setSpinnerKey(null); },
     });
     return () => { clearTimeout(spinner); stop(); };
-  }, [snapshotId, query, searchKey, roleCatalog, refreshRoleCatalog, pageCache, filters]);
+  }, [snapshotId, query, searchKey, roleCatalog, refreshRoleCatalog, pageCache, filters, cacheApi, clearingCache]);
   // Clear the previous player's remote data before requesting another identity.
   // oxlint-disable-next-line react/react-compiler
   useEffect(() => {
     // oxlint-disable-next-line react/react-compiler -- prevent displaying the previous identity
     setDetailResponse(null);
     setDetailError("");
-    if (detailId === null || !snapshotId || !roleCatalog) return;
+    if (detailId === null || !snapshotId || !roleCatalog || clearingCache) return;
     return requestSnapshot<Detail>({
-      path: `/snapshots/${snapshotId}/players/${detailId}?${systemQuery}`, request: api,
+      path: `/snapshots/${snapshotId}/players/${detailId}?${systemQuery}`, request: cacheApi,
       onValue: value => {
         if (sameRatingSystem(value, roleCatalog)) setDetailResponse({ key: detailKey, value });
         else void refreshRoleCatalog().catch(e => setDetailError(errorText(e)));
       },
       onError: e => {
+        if (isCacheAbort(e)) return;
         if (e instanceof ApiError && e.status === 409) void refreshRoleCatalog().catch(error => setDetailError(errorText(error)));
         else setDetailError(errorText(e));
       },
     });
-  }, [detailId, snapshotId, detailKey, systemQuery, roleCatalog, refreshRoleCatalog]);
+  }, [detailId, snapshotId, detailKey, systemQuery, roleCatalog, refreshRoleCatalog, cacheApi, clearingCache]);
   function openPlayer(id: number, roleId?: string) {
     setDetailRole(roleId ?? (sort.startsWith('role:') ? sort.slice(5) : filters.role));
     setDetailId(id);
@@ -462,13 +470,40 @@ export default function Home() {
     setDirection(nextSort.direction);
     setPage(1);
   };
+  const unloadCache = useCallback(() => {
+    cacheLifecycle.cancel();
+    pageCache.clear();
+    setSnapshot(null); setDetailId(null); setDetailResponse(null); setDetailRole('');
+    setSearchResponse(null); setSpinnerKey(null); setSearchError(''); setDetailError('');
+    setJob(null); setStarting(false); setFilters({ ...defaultFilters }); setPage(1);
+    const nextSort = resolveColumnSort(columnIds, 'pa', 'desc', '');
+    setSort(nextSort.sort); setDirection(nextSort.direction);
+    setError(''); setNotice('Cache cleared. Read a save to load it again.');
+    setSaves(previous => previous.map(save => ({ ...save, cached: false })));
+    void refresh().catch(e => { if (!isCacheAbort(e)) setError(errorText(e)); });
+  }, [cacheLifecycle, pageCache, columnIds, refresh]);
+  const observeCacheRevision = useCallback((revision: string) => {
+    if (cacheLifecycle.observe(revision)) unloadCache();
+  }, [cacheLifecycle, unloadCache]);
+  useEffect(() => {
+    if (initializing || clearingCache) return;
+    return watchCacheRevision({ target: window, visibility: document, request: cacheApi, onRevision: observeCacheRevision });
+  }, [initializing, clearingCache, cacheApi, observeCacheRevision]);
+  function cacheCleared(result: CacheClearResult) {
+    cacheLifecycle.observe(result.usage.cacheRevision);
+    unloadCache();
+  }
+  function changeCacheClearing(value: boolean) {
+    if (value) cacheLifecycle.cancel();
+    setClearingCache(value);
+  }
   async function importSave() {
-    if (!selected) return;
+    if (!selected || clearingCache) return;
     setStarting(true);
     setError("");
     setNotice("");
     try {
-      const next = await api<Job>("/imports", {
+      const next = await cacheApi<Job>("/imports", {
         method: "POST",
         body: JSON.stringify({ saveId: selected }),
       });
@@ -479,7 +514,7 @@ export default function Home() {
         setNotice("Loaded from your local cache.");
       }
     } catch (e) {
-      setError(errorText(e));
+      if (!isCacheAbort(e)) setError(errorText(e));
     } finally {
       setStarting(false);
     }
@@ -487,12 +522,12 @@ export default function Home() {
   async function cancelImport() {
     if (!job) return;
     try {
-      const next = await api<Job>("/imports/" + job.id, { method: "DELETE" });
+      const next = await cacheApi<Job>("/imports/" + job.id, { method: "DELETE" });
       setJob(next);
       if (next.status === "complete") await loadSnapshot(next.snapshotId);
       else setNotice("Import cancelled.");
     } catch (e) {
-      setError(errorText(e));
+      if (!isCacheAbort(e)) setError(errorText(e));
     }
   }
   async function saveFolder() {
@@ -581,7 +616,7 @@ export default function Home() {
         modelContext?: { registerTool: (t: Tool, options:{signal:AbortSignal}) => void|Promise<void> };
       }
     ).modelContext;
-    if (!context || !snapshotId || !roleCatalog) return;
+    if (!context || !snapshotId || !roleCatalog || clearingCache) return;
     const lifecycle=new AbortController();
     const register=(tool:Tool)=>{try{void Promise.resolve(context.registerTool(tool,{signal:lifecycle.signal})).catch(e=>console.warn('Browser tool registration failed',e));}catch(e){console.warn('Browser tool registration failed',e);}};
     register({
@@ -605,7 +640,7 @@ export default function Home() {
         const nextFilters = { ...defaultFilters, q, paMin: String(pa) };
         const nextSort = resolveColumnSort(columnIds, 'pa', 'desc', '');
         const nextQuery = playerSearchQuery(nextFilters, nextSort.sort, nextSort.direction, 1, '50', displayedRoleIds, displayBestRole, roleCatalog);
-        const found = await pageCache.load(nextQuery, api<Results>);
+        const found = await pageCache.load(nextQuery, cacheApi<Results>);
         if (lifecycle.signal.aborted) throw new Error('The active save or view changed.');
         flushSync(()=>{setFilters(nextFilters);setSort(nextSort.sort);setDirection(nextSort.direction);setPage(1);setLimit('50');setSearchResponse({key:resourceKey(snapshotId,nextQuery),value:found});});
         return found;
@@ -624,7 +659,7 @@ export default function Home() {
       execute: async (args) => {
         const id = Number(args.playerId);
         if (!Number.isInteger(id) || id < 0) throw new Error("Invalid player ID.");
-        const p = await api<Detail>(`/snapshots/${snapshotId}/players/${id}`);
+        const p = await cacheApi<Detail>(`/snapshots/${snapshotId}/players/${id}`);
         if (lifecycle.signal.aborted) throw new Error('The active save changed.');
         flushSync(()=>{setDetailRole('');setDetailId(p.id);});
         return {id:p.id,name:p.name,status:'opened'};
@@ -633,7 +668,7 @@ export default function Home() {
     return () => {
       lifecycle.abort();
     };
-  }, [snapshotId, displayedRoleIds, columnIds, displayBestRole, roleCatalog, pageCache]);
+  }, [snapshotId, displayedRoleIds, columnIds, displayBestRole, roleCatalog, pageCache, cacheApi, clearingCache]);
 
   return (
     <main className="scout-app">
@@ -715,7 +750,7 @@ export default function Home() {
         >
           <RefreshCw size={17} />
         </Button>
-        <Button disabled={!chosen || running || starting} onClick={() => void importSave()}>
+        <Button disabled={!chosen || running || starting || clearingCache} onClick={() => void importSave()}>
           {starting ? <LoaderCircle className="spin" size={16} /> : <Database size={16} />}{" "}
           {chosen?.cached ? "Open save" : "Read save"}
         </Button>
@@ -1062,12 +1097,15 @@ export default function Home() {
             </p>
           )}
           <Button
-            disabled={running || savingFolder || !folderDraft.trim()}
+            disabled={running || savingFolder || clearingCache || !folderDraft.trim()}
             onClick={() => void saveFolder()}
           >
             {savingFolder ? "Saving…" : "Save folder"}
           </Button>
           {running && <p className="muted">Wait for the current import before changing folders.</p>}
+          <CacheSettings open={settingsOpen} busy={running || starting || savingFolder} clearing={clearingCache}
+            memoryBytes={() => pageCache.estimatedBytes()} onClearing={changeCacheClearing}
+            onCleared={cacheCleared} onRevision={observeCacheRevision} request={cacheApi} />
       </RatingSystemSettings>
       <Sheet
         open={detailId !== null}
