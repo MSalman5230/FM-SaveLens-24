@@ -67,7 +67,7 @@ test('saving as a new role keeps its source unchanged and inherits duty and grou
 });
 
 test('switching systems preserves compatible filters, clears removed roles, and repairs columns and sorting', () => {
-  const filters = { role: 'custom-removed', roleMin: '72.5', q: 'Ali', club: '42', position: '12' };
+  const filters = { role: 'custom-removed', roleMin: '72.5', q: 'Ali', club: '42', position: '2,4', positionMatch: 'or' };
   const next = reconcileRatingView(catalog, filters, ['name', 'pa', 'role:custom-removed', 'role:af-attack'], 'role:custom-removed', 'asc');
   assert.deepEqual(next, { filters: { ...filters, role: '', roleMin: '' }, columnIds: ['name', 'pa', 'role:af-attack'], sort: 'pa', direction: 'desc', page: 1 });
   const valid = reconcileRatingView(catalog, { ...filters, role: 'af-attack' }, ['name', 'role:af-attack'], 'roleRating', 'asc');

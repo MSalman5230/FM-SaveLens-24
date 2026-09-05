@@ -4,6 +4,8 @@ A local Football Manager 2024 save reader for desktop and browser. Search and fi
 
 Supports FM24 internal save format **24.3.0+0**, compressed or uncompressed. Not affiliated with Sports Interactive or SEGA.
 
+Select multiple **Positions** in the left filters. **AND — All selected** (the default) requires a rating of **15+ in every selected position**; **OR — Any selected** requires 15+ in at least one. Remove individual chips or choose **Clear positions** to remove the restriction. Clearing all positions or using **Reset** restores AND. See [position filter query parameters and examples](docs/POSITION_FILTERS.md).
+
 Rate players for all **45 FM24 roles / 85 role-and-duty profiles**. Select a role in search to rank and filter players, or open **Role ratings** on a profile for the key/preferable attribute breakdown. SaveLens scores are out of 100, with key attributes weighted twice as much as preferable attributes; position familiarity remains separate. Existing imports work immediately and ratings work offline. See the [complete role catalog and scoring research](docs/ROLE_RATINGS.md).
 
 Use **Edit columns** above the player list to tick player details and any number of role ratings, including multiple duties for the same role. Click a role heading to sort, or a score to open its attribute breakdown. Player names stay visible while scrolling sideways, and your column view is remembered on this device. **Reset view** restores the default columns.

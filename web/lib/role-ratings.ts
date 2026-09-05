@@ -22,7 +22,10 @@ export function playerQuery(
   roles: string[] = [],
 ) {
   const params = new URLSearchParams({ sort, direction, page: String(page), limit });
-  for (const [key, value] of Object.entries(filters)) if (value) params.set(key, value);
+  for (const [key, value] of Object.entries(filters)) {
+    if (value && key !== 'positionMatch') params.set(key, value);
+  }
+  if (filters.position) params.set('positionMatch', filters.positionMatch || 'and');
   if (roles.length) params.set('roles', [...new Set(roles)].join(','));
   return params.toString();
 }

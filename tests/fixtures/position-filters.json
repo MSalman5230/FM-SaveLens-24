@@ -1,0 +1,46 @@
+{
+  "players": [
+    { "id": 1, "name": "Both sides", "ratings": { "2": 15, "4": 20 }, "clubId": 1, "attribute": 16 },
+    { "id": 2, "name": "Left only", "ratings": { "2": 20, "4": 14 }, "clubId": 1, "attribute": 17 },
+    { "id": 3, "name": "Right only", "ratings": { "2": 14, "4": 15 }, "clubId": 1, "attribute": 14 },
+    { "id": 4, "name": "Neither side", "ratings": { "2": 14, "4": 14 }, "clubId": 1, "attribute": 20 },
+    { "id": 5, "name": "Three positions", "ratings": { "2": 20, "4": 15, "14": 15 }, "clubId": 2, "attribute": 18 },
+    { "id": 6, "name": "Goalkeeper", "ratings": { "0": 15, "2": 14 }, "clubId": 2, "attribute": 19 },
+    { "id": 7, "name": "Striker", "ratings": { "12": 20 }, "clubId": null, "attribute": 15 },
+    { "id": 8, "name": "Left and wingback", "ratings": { "2": 15, "4": 14, "14": 20 }, "clubId": 1, "attribute": 12 }
+  ],
+  "cases": [
+    { "query": "", "ids": [1,2,3,4,5,6,7,8], "total": 8 },
+    { "query": "position=", "ids": [1,2,3,4,5,6,7,8], "total": 8 },
+    { "query": "positionMatch=or", "ids": [1,2,3,4,5,6,7,8], "total": 8 },
+    { "query": "position=2,4", "ids": [1,5], "total": 2 },
+    { "query": "position=2,4&positionMatch=and", "ids": [1,5], "total": 2 },
+    { "query": "position=2,4&positionMatch=or", "ids": [1,2,3,5,8], "total": 5 },
+    { "query": "position=2", "ids": [1,2,5,8], "total": 4 },
+    { "query": "position=2&positionMatch=or", "ids": [1,2,5,8], "total": 4 },
+    { "query": "position=4", "ids": [1,3,5], "total": 3 },
+    { "query": "position=12", "ids": [7], "total": 1 },
+    { "query": "position=0", "ids": [6], "total": 1 },
+    { "query": "position=14", "ids": [5,8], "total": 2 },
+    { "query": "position=2,4,14", "ids": [5], "total": 1 },
+    { "query": "position=2,4,0&positionMatch=or", "ids": [1,2,3,5,6,8], "total": 6 },
+    { "query": "position=0,2", "ids": [], "total": 0 },
+    { "query": "position=4,2,4,2", "ids": [1,5], "total": 2 },
+    { "query": "position=4,2,4,2&positionMatch=or", "ids": [1,2,3,5,8], "total": 5 },
+    { "query": "position=%202%20,%204%20", "ids": [1,5], "total": 2 },
+    { "query": "position=2,4&club=1&attr_pace=16", "ids": [1], "total": 1 },
+    { "query": "position=2,4&positionMatch=or&club=1&attr_pace=16", "ids": [1,2], "total": 2 },
+    { "query": "position=2,4&positionMatch=or&club=1&attr_pace=16&limit=1&page=2", "ids": [2], "total": 2 },
+    { "query": "position=2,4&limit=1&page=2", "ids": [5], "total": 2 },
+    { "query": "position=2,4&positionMatch=or&limit=2&page=2", "ids": [3,5], "total": 5 },
+    { "query": "position=2,4&positionMatch=or&limit=2&page=3", "ids": [8], "total": 5 },
+    { "query": "position=2,4&positionMatch=or&limit=2&page=4", "ids": [], "total": 5 }
+  ],
+  "invalid": [
+    "position=-1", "position=15", "position=2,15", "position=2,-1", "position=1.5", "position=1.0", "position=DL",
+    "position=NaN", "position=Infinity", "position=999999999999999999999", "position=1e1", "position=0x2",
+    "position=,", "position=2,", "position=,4", "position=2,,4", "position=%20", "position=2,%20,4",
+    "positionMatch=", "positionMatch=AND", "positionMatch=any", "position=2,4&positionMatch=x",
+    "position=2);DROP%20TABLE%20players;--"
+  ]
+}

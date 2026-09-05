@@ -288,9 +288,38 @@ pub fn search_with_system(
         clauses.push("EXISTS (SELECT 1 FROM json_each(players.nations) WHERE value = ?)".into());
         args.push(n.into());
     }
-    if let Some(n) = integer("position", 0, 14)? {
-        clauses.push("(position_mask & ?) != 0".into());
-        args.push((1i64 << n).into());
+    let position_match = params
+        .get("positionMatch")
+        .map(String::as_str)
+        .unwrap_or("and");
+    if !["and", "or"].contains(&position_match) {
+        return Err(Error::query(
+            "Invalid positionMatch. Expected 'and' or 'or'.",
+        ));
+    }
+    if let Some(positions) = params.get("position").filter(|s| !s.is_empty()) {
+        let mut mask = 0i64;
+        for id in positions.split(',') {
+            let id = id.trim();
+            if id.is_empty() || !id.bytes().all(|b| b.is_ascii_digit()) {
+                return Err(Error::query("Invalid position."));
+            }
+            let index = id
+                .parse::<usize>()
+                .map_err(|_| Error::query("Invalid position."))?;
+            if index >= CATALOG.positions.len() {
+                return Err(Error::query("Invalid position."));
+            }
+            mask |= 1i64 << index;
+        }
+        if position_match == "and" {
+            clauses.push("(position_mask & ?) = ?".into());
+            args.push(mask.into());
+            args.push(mask.into());
+        } else {
+            clauses.push("(position_mask & ?) != 0".into());
+            args.push(mask.into());
+        }
     }
     for a in &CATALOG.attributes {
         if let Some(n) = integer(&format!("attr_{}", a.key), 1, 20)? {

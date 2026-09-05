@@ -50,6 +50,9 @@ import { ratingIdentity, ratingParams, reconcileRatingView, sameRatingSystem } f
 import { playerQuery, roleLabel, selectRole } from "@/lib/role-ratings";
 import { PlayerColumnChooser } from "@/components/player-column-chooser";
 import { PlayerListTable } from "@/components/player-list-table";
+import { PositionFilter } from "@/components/position-filter";
+import { activeFilterCount, defaultPositionFilters, selectedPositions, selectPositions } from "@/lib/position-filter";
+import type { PositionMatch } from "@/lib/position-filter";
 import { columnStorageKey, defaultColumns, normalizeColumns, playerColumns, restoreColumns, resolveColumnSort, visibleSort } from "@/lib/player-columns";
 import { currentValue, requestSnapshot, resourceKey } from "@/lib/snapshot-request";
 import type { ScopedValue } from "@/lib/snapshot-request";
@@ -156,7 +159,7 @@ const defaultFilters: Record<string, string> = {
   q: "",
   club: "",
   nation: "",
-  position: "",
+  ...defaultPositionFilters,
   role: "",
   roleMin: "",
   ageMin: "",
@@ -420,6 +423,11 @@ export default function Home() {
     setFilters((f) => ({ ...f, [key]: value }));
     setPage(1);
   };
+  const changePositions = (positions: string[], match?: PositionMatch) => {
+    const next = selectPositions(filters, positions, match);
+    setFilters(next.filters);
+    setPage(next.page);
+  };
   const clearFilters = () => {
     const nextSort = resolveColumnSort(columnIds, sort, direction, '');
     setFilters({ ...defaultFilters });
@@ -516,7 +524,7 @@ export default function Home() {
     .map(role => ({ value: role.id, label: roleLabel(role), description: role.group }))
     .sort((a, b) => a.label.localeCompare(b.label)), [roleCatalog]);
   const selectedRole = roleCatalog?.roles.find(role => role.id === filters.role);
-  const activeFilters = Object.values(filters).filter(Boolean).length;
+  const activeFilters = activeFilterCount(filters);
   function changeSort(key: string) {
     setSort(key);
     setDirection(
@@ -766,19 +774,9 @@ export default function Home() {
                 disabled={!snapshot}
               />
             </div>
-            <div className="filter-field">
-              <label htmlFor="position">Position</label>
-              <Choice
-                label="Position"
-                value={filters.position}
-                options={[
-                  { value: "", label: "All positions" },
-                  ...positions.map((p, i) => ({ value: String(i), label: p })),
-                ]}
-                onChange={(v) => updateFilter("position", v)}
-              />
-              <small>Accomplished or natural (15+)</small>
-            </div>
+            <PositionFilter positions={positions} value={selectedPositions(filters.position)}
+              match={filters.positionMatch === 'or' ? 'or' : 'and'} disabled={!snapshot}
+              onChange={changePositions} />
             <div className="filter-field">
               <label htmlFor="role-and-duty">Role and duty</label>
               <Picker label="Role and duty" options={roleOptions} value={filters.role}

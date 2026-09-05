@@ -499,6 +499,10 @@ async fn api_import_cache_security_and_shutdown() {
         "role=af-attack&roleMin=NaN",
         "roles=af-attack,unknown",
         "sort=role:unknown",
+        "position=2,,4",
+        "position=15",
+        "positionMatch=unsupported",
+        "position=2,4&positionMatch=",
     ] {
         let response = client
             .get(format!("{url}/api/snapshots/{id}/players?{query}"))

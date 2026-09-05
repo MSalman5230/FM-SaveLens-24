@@ -1443,6 +1443,32 @@ h2 {
   outline: 2px solid var(--primary);
   outline-offset: 4px;
 }
+.position-filter [data-slot="combobox-chips"] {
+  background: #20282a;
+}
+.filters .position-filter [data-slot="combobox-chip-input"] {
+  width: 0;
+  min-width: 100px;
+  padding: 3px;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+.position-filter .clear-positions {
+  margin: 4px 0;
+  padding-inline: 0;
+  font-size: 12px;
+}
+.filters .position-match label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 12px;
+}
+.position-match[data-disabled] {
+  opacity: 0.6;
+}
 @media (max-width: 600px) {
   .column-option-grid {
     grid-template-columns: 1fr;
