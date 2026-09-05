@@ -265,7 +265,7 @@ export function RatingSystemSettings({ open, onOpenChange, attributes, onCatalog
     </Dialog>
     <AlertDialog open={deletion !== null} onOpenChange={next => { if (!next && !busy) setDeletion(null); }}>
       <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete {deletion === 'role' ? role?.name : system?.name}?</AlertDialogTitle>
-        <AlertDialogDescription>{deletion === 'role' ? 'This added role will be removed from this system.' : system?.id === library?.activeSystemId ? 'The app will switch back to Role Highlighted Rating.' : 'This custom system and its role weights will be removed.'}</AlertDialogDescription></AlertDialogHeader>
+        <AlertDialogDescription>{deletion === 'role' ? 'This added role will be removed from this system.' : system?.id === library?.activeSystemId ? 'The app will switch back to FM-Arena Hybrid Rating.' : 'This custom system and its role weights will be removed.'}</AlertDialogDescription></AlertDialogHeader>
         {error && <p className="error-text" role="alert">{error}</p>}
         <AlertDialogFooter><Button variant="outline" disabled={busy} onClick={() => setDeletion(null)}>Cancel</Button>
           <Button variant="destructive" disabled={busy} onClick={() => void deleteConfirmed()}>Delete</Button></AlertDialogFooter>
