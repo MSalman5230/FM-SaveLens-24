@@ -6,7 +6,18 @@ export const roleLabel = (role: RoleDefinition) =>
 export const formatRoleScore = (score: number | null | undefined) =>
   score == null ? '—' : score.toFixed(1);
 
-export const roleAbbreviation = (role: RoleDefinition) => role.role === 'anchor' ? 'A' : role.role.toUpperCase();
+// Internal role aliases can differ from the abbreviations displayed in FM24.
+const roleAbbreviations: Record<string, string> = {
+  anchor: 'A',
+  wtf: 'WT',
+  reg: 'RGA',
+  sv: 'VOL',
+  eng: 'EG',
+  lib: 'L',
+};
+
+export const roleAbbreviation = (role: RoleDefinition) =>
+  roleAbbreviations[role.role] ?? role.role.toUpperCase();
 
 export const formatBestRole = (score: number | null | undefined, role: RoleDefinition | undefined) =>
   score == null || !role ? '—' : `${formatRoleScore(score)} (${roleAbbreviation(role)})`;

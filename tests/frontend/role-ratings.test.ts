@@ -11,7 +11,12 @@ import { currentValue, requestSnapshot, resourceKey } from '../../web/lib/snapsh
 const catalog = JSON.parse(readFileSync(new URL('../../native/roles.json', import.meta.url), 'utf8')) as RoleCatalog;
 
 test('best role formatting uses one decimal and a short role code without duty', () => {
-  for (const [id, code] of [['af-attack', 'AF'], ['ap-support', 'AP'], ['cd-defend', 'CD'], ['anchor-defend', 'A'], ['f9-support', 'F9']]) {
+  for (const [id, code] of [
+    ['af-attack', 'AF'], ['ap-support', 'AP'], ['cd-defend', 'CD'], ['anchor-defend', 'A'], ['f9-support', 'F9'],
+    ['wtf-support', 'WT'], ['wtf-attack', 'WT'], ['reg-support', 'RGA'],
+    ['sv-support', 'VOL'], ['sv-attack', 'VOL'], ['eng-support', 'EG'],
+    ['lib-defend', 'L'], ['lib-support', 'L'],
+  ]) {
     const role = catalog.roles.find(role => role.id === id)!;
     assert.equal(roleAbbreviation(role), code);
     assert.equal(formatBestRole(85.44, role), `85.4 (${code})`);
