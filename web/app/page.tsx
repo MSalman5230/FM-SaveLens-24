@@ -47,8 +47,8 @@ import { watchSnapshotFocus } from "@/lib/focus-refresh";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { RoleRatings } from "@/components/role-ratings";
 import { RatingSystemSettings } from "@/components/rating-system-settings";
-import { ratingIdentity, ratingParams, reconcileRatingView, sameRatingSystem } from "@/lib/rating-systems";
-import { playerQuery, roleLabel, selectRole } from "@/lib/role-ratings";
+import { playerSearchQuery, ratingIdentity, ratingParams, reconcileRatingView, sameRatingSystem } from "@/lib/rating-systems";
+import { roleLabel, selectRole } from "@/lib/role-ratings";
 import { PlayerColumnChooser } from "@/components/player-column-chooser";
 import { PlayerListTable } from "@/components/player-list-table";
 import { PositionFilter, PositionMatching } from "@/components/position-filter";
@@ -354,11 +354,20 @@ export default function Home() {
   }, [columnIds, initializing]);
   // Another local window may change the workspace's active system.
   useEffect(() => {
-    const refresh = () => { void refreshRoleCatalog().catch(e => setError(errorText(e))); };
+    if (settingsOpen) return; // The open editor refreshes the library and publishes its catalog.
+    let controller: AbortController | undefined;
+    const refresh = () => {
+      controller?.abort();
+      controller = new AbortController();
+      const { signal } = controller;
+      void api<RoleCatalog>('/roles', { signal }).then(next => {
+        if (!signal.aborted) applyRoleCatalog(next);
+      }).catch(e => { if (!signal.aborted) setError(errorText(e)); });
+    };
     window.addEventListener('focus', refresh);
-    return () => window.removeEventListener('focus', refresh);
-  }, [refreshRoleCatalog]);
-  const query = useMemo(() => [playerQuery(filters, sort, direction, page, limit, displayedRoleIds, displayBestRole), systemQuery].filter(Boolean).join('&'), [filters, sort, direction, page, limit, displayedRoleIds, displayBestRole, systemQuery]);
+    return () => { controller?.abort(); window.removeEventListener('focus', refresh); };
+  }, [applyRoleCatalog, settingsOpen]);
+  const query = useMemo(() => playerSearchQuery(filters, sort, direction, page, limit, displayedRoleIds, displayBestRole, roleCatalog), [filters, sort, direction, page, limit, displayedRoleIds, displayBestRole, roleCatalog]);
   const searchKey = resourceKey(snapshotId, query);
   const result = pageCache.peek(query) ?? currentValue(searchResponse, searchKey);
   const searching = Boolean(snapshotId && roleCatalog && !result && !searchError);
@@ -574,7 +583,7 @@ export default function Home() {
         modelContext?: { registerTool: (t: Tool, options:{signal:AbortSignal}) => void|Promise<void> };
       }
     ).modelContext;
-    if (!context || !snapshotId) return;
+    if (!context || !snapshotId || !roleCatalog) return;
     const lifecycle=new AbortController();
     const register=(tool:Tool)=>{try{void Promise.resolve(context.registerTool(tool,{signal:lifecycle.signal})).catch(e=>console.warn('Browser tool registration failed',e));}catch(e){console.warn('Browser tool registration failed',e);}};
     register({
@@ -597,7 +606,7 @@ export default function Home() {
           throw new Error("Potential must be 1–200.");
         const nextFilters = { ...defaultFilters, q, paMin: String(pa) };
         const nextSort = resolveColumnSort(columnIds, 'pa', 'desc', '');
-        const nextQuery = [playerQuery(nextFilters, nextSort.sort, nextSort.direction, 1, '50', displayedRoleIds, displayBestRole), systemQuery].filter(Boolean).join('&');
+        const nextQuery = playerSearchQuery(nextFilters, nextSort.sort, nextSort.direction, 1, '50', displayedRoleIds, displayBestRole, roleCatalog);
         const found = await pageCache.load(nextQuery, api<Results>);
         if (lifecycle.signal.aborted) throw new Error('The active save or view changed.');
         flushSync(()=>{setFilters(nextFilters);setSort(nextSort.sort);setDirection(nextSort.direction);setPage(1);setLimit('50');setSearchResponse({key:resourceKey(snapshotId,nextQuery),value:found});});
@@ -626,7 +635,7 @@ export default function Home() {
     return () => {
       lifecycle.abort();
     };
-  }, [snapshotId, displayedRoleIds, columnIds, displayBestRole, systemQuery, pageCache]);
+  }, [snapshotId, displayedRoleIds, columnIds, displayBestRole, roleCatalog, pageCache]);
 
   return (
     <main className="scout-app">

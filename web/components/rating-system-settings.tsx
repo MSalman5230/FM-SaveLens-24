@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useEffectEvent, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -7,9 +7,10 @@ import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, A
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Combobox, ComboboxInput, ComboboxContent, ComboboxList, ComboboxItem, ComboboxEmpty } from '@/components/ui/combobox';
-import { api, type Attribute, type RatingSystem, type RatingSystems, type RoleCatalog, type RoleDefinition } from '@/lib/scout-api';
+import { api, ApiError, type Attribute, type RatingSystem, type RatingSystems, type RoleCatalog, type RoleDefinition } from '@/lib/scout-api';
 import { editRole, hybridEvidenceUrl, hybridSystemId, parseWeights, ratingModelNote, ratingSystemLabel, roleWeights, weightAttributes, weightDraft, weightGroup, weightGroups } from '@/lib/rating-systems';
 import { roleLabel } from '@/lib/role-ratings';
+import { watchRatingSettingsFocus, type RatingConflict, type RatingSettingsRefresh } from '@/lib/rating-settings-refresh';
 
 type Intent = { kind: 'close' | 'tab' | 'system' | 'role' | 'new' | 'deleteSystem' | 'deleteRole'; value?: string };
 type Naming = 'new' | 'system' | 'role';
@@ -29,7 +30,12 @@ export function RatingSystemSettings({ open, onOpenChange, attributes, onCatalog
   const [systemName, setSystemName] = useState('');
   const [roleName, setRoleName] = useState('');
   const [weights, setWeights] = useState<Record<string, string>>({});
-  const [busy, setBusy] = useState(false);
+  const [working, setWorking] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [completedActions, setCompletedActions] = useState(0);
+  const busy = working || loading;
+  const refreshRef = useRef<ReturnType<typeof watchRatingSettingsFocus> | null>(null);
+  const [conflict, setConflict] = useState<RatingConflict>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [pending, setPending] = useState<Intent | null>(null);
@@ -48,33 +54,45 @@ export function RatingSystemSettings({ open, onOpenChange, attributes, onCatalog
     .sort((a, b) => a.label.localeCompare(b.label)), [system]);
   const selectedOption = options.find(option => option.value === roleId) ?? null;
   const filtered = options.filter(option => roleSearch === selectedOption?.label || option.label.toLowerCase().includes(roleSearch.toLowerCase()));
+  const systemOptions = (library?.systems ?? []).map(item => ({ value: item.id, label: ratingSystemLabel(item) }));
+  if (system && !systemOptions.some(item => item.value === system.id)) {
+    systemOptions.push({ value: system.id, label: `${system.name} · ${conflict === 'deleted' ? 'Deleted draft' : 'Loading'}` });
+  }
 
   function selectRole(next: RoleDefinition) {
+    refreshRef.current?.invalidate();
     setRoleId(next.id); setRoleName(next.name); setWeights(weightDraft(next)); setRoleSearch('');
   }
   function selectSystem(next: RatingSystem, preferredRole?: string) {
+    setConflict(null);
     setSystem(next); setSystemName(next.name);
     selectRole(next.roles.find(role => role.id === preferredRole) ?? next.roles[0]);
   }
 
+  // Keep the source fixed while a copy name or deletion confirmation is open.
+  const getEditor = useEffectEvent(() => ({ system, dirty: dirty || naming !== null || deletion !== null }));
+  const applyRefresh = useEffectEvent((next: RatingSettingsRefresh) => {
+    setLibrary(next.library); onCatalog(next.library.catalog);
+    if (next.system) selectSystem(next.system, roleId);
+    setConflict(next.conflict); setError('');
+  });
   useEffect(() => {
     if (!open) return;
-    const controller = new AbortController();
-    void (async () => {
-      setBusy(true); setError(''); setNotice('');
-      try {
-        const next = await api<RatingSystems>('/rating-systems', { signal: controller.signal });
-        const current = await api<RatingSystem>(`/rating-systems/${next.activeSystemId}`, { signal: controller.signal });
-        if (controller.signal.aborted) return;
-        setLibrary(next); onCatalog(next.catalog);
-        setSystem(current); setSystemName(current.name);
-        const first = current.roles[0];
-        setRoleId(first.id); setRoleName(first.name); setWeights(weightDraft(first)); setRoleSearch('');
-      } catch (error) { if (!controller.signal.aborted) setError(errorText(error)); }
-      finally { if (!controller.signal.aborted) setBusy(false); }
-    })();
-    return () => controller.abort();
-  }, [open, onCatalog]);
+    // oxlint-disable-next-line react/react-compiler -- reset feedback for a new remote editor session
+    setError(''); setNotice(''); setConflict(null);
+    const refresh = watchRatingSettingsFocus({
+      target: window, request: api, getEditor,
+      onValue: applyRefresh, onError: error => setError(errorText(error)), onLoading: setLoading,
+    });
+    refreshRef.current = refresh;
+    void refresh.refresh();
+    return () => { refresh.dispose(); refreshRef.current = null; };
+  }, [open]);
+
+  // Resume after React commits the saved definition, so queued focus reads see it.
+  useEffect(() => {
+    if (!working) refreshRef.current?.resume();
+  }, [working, completedActions]);
 
   useEffect(() => {
     if (!open || !dirty) return;
@@ -84,10 +102,15 @@ export function RatingSystemSettings({ open, onOpenChange, attributes, onCatalog
   }, [open, dirty]);
 
   async function perform(action: () => Promise<void>): Promise<boolean> {
-    setBusy(true); setError(''); setNotice('');
+    refreshRef.current?.pause();
+    setWorking(true); setError(''); setNotice('');
     try { await action(); return true; }
-    catch (error) { setError(errorText(error)); return false; }
-    finally { setBusy(false); }
+    catch (error) {
+      setError(errorText(error));
+      if (error instanceof ApiError && (error.status === 409 || error.status === 404)) void refreshRef.current?.refresh();
+      return false;
+    }
+    finally { setWorking(false); setCompletedActions(value => value + 1); }
   }
   async function refreshLibrary() {
     const next = await api<RatingSystems>('/rating-systems');
@@ -103,7 +126,7 @@ export function RatingSystemSettings({ open, onOpenChange, attributes, onCatalog
     setNotice('Changes saved.');
   }
   async function save() {
-    if (!system || system.builtIn) return false;
+    if (!system || system.builtIn || conflict) return false;
     return perform(async () => {
       await persist(editRole(system, roleId, roleName, parseWeights(weights, attributes)));
     });
@@ -119,22 +142,22 @@ export function RatingSystemSettings({ open, onOpenChange, attributes, onCatalog
     setNewName(suggestName(kind === 'role' ? roleName : systemName,
       kind === 'role' ? (system?.roles ?? []).filter(item => item.duty === role?.duty).map(item => item.name) : (library?.systems ?? []).map(item => item.name)));
   }
-  function execute(intent: Intent) {
+  function execute(intent: Intent, current = system) {
     setError(''); setNotice('');
     if (intent.kind === 'close') onOpenChange(false);
     if (intent.kind === 'tab') setTab(intent.value!);
-    if (intent.kind === 'role' && system) selectRole(system.roles.find(role => role.id === intent.value)!);
+    if (intent.kind === 'role' && current) selectRole(current.roles.find(role => role.id === intent.value) ?? current.roles[0]);
     if (intent.kind === 'system') void perform(async () => selectSystem(await api<RatingSystem>(`/rating-systems/${intent.value}`), roleId));
     if (intent.kind === 'new') openNaming('new');
-    if (intent.kind === 'deleteSystem') setDeletion('system');
-    if (intent.kind === 'deleteRole') setDeletion('role');
+    if (intent.kind === 'deleteSystem' && current?.id === system?.id && !current?.builtIn) setDeletion('system');
+    if (intent.kind === 'deleteRole' && current?.id === system?.id && current?.roles.some(role => role.id === roleId && role.id.startsWith('custom-'))) setDeletion('role');
   }
   function leave(intent: Intent) {
     if (busy) return;
     if (dirty) setPending(intent); else execute(intent);
   }
   async function saveNamed() {
-    if (!system || !naming) return;
+    if (!system || !naming || conflict && naming !== 'system') return;
     await perform(async () => {
       const name = newName.trim();
       if (!name || Array.from(name).length > 100) throw new Error('Names must contain 1–100 characters.');
@@ -144,7 +167,8 @@ export function RatingSystemSettings({ open, onOpenChange, attributes, onCatalog
       } else {
         const roles = naming === 'system' ? editRole(system, roleId, roleName, parseWeights(weights, attributes)) : undefined;
         const saved = await api<RatingSystem>('/rating-systems', {
-          method: 'POST', body: JSON.stringify({ sourceId: system.id, name, roles }),
+          // Full draft definitions also survive deletion of their original source.
+          method: 'POST', body: JSON.stringify({ sourceId: roles ? undefined : system.id, name, roles }),
         });
         selectSystem(saved, roleId); await refreshLibrary();
         setNotice('System saved. Choose Use system to activate it.');
@@ -153,7 +177,7 @@ export function RatingSystemSettings({ open, onOpenChange, attributes, onCatalog
     });
   }
   async function deleteConfirmed() {
-    if (!system) return;
+    if (!system || conflict) return;
     await perform(async () => {
       if (deletion === 'role') {
         await persist(system.roles.filter(role => role.id !== roleId), system.roles[0].id);
@@ -178,19 +202,23 @@ export function RatingSystemSettings({ open, onOpenChange, attributes, onCatalog
           <TabsContent value="ratings" className="rating-settings">
             <div className="rating-system-toolbar">
               <label className="rating-field" htmlFor="rating-system-picker">Rating system
-                <Select items={(library?.systems ?? []).map(item => ({ value: item.id, label: ratingSystemLabel(item) }))} value={system?.id ?? ''}
+                <Select items={systemOptions} value={system?.id ?? ''}
                   onValueChange={id => { if (id && id !== system?.id) leave({ kind: 'system', value: id }); }} disabled={busy}>
                   <SelectTrigger id="rating-system-picker" aria-label="Rating system"><SelectValue /></SelectTrigger>
-                  <SelectContent alignItemWithTrigger={false}>{library?.systems.map(item =>
-                    <SelectItem key={item.id} value={item.id}>{ratingSystemLabel(item)}{item.id === library.activeSystemId ? ' · Active' : ''}</SelectItem>)}</SelectContent>
+                  <SelectContent alignItemWithTrigger={false}>{systemOptions.map(item =>
+                    <SelectItem key={item.value} value={item.value}>{item.label}{item.value === library?.activeSystemId ? ' · Active' : ''}</SelectItem>)}</SelectContent>
                 </Select>
               </label>
-              <Button variant="outline" disabled={busy || !system} onClick={() => leave({ kind: 'new' })}>New system</Button>
-              <Button disabled={busy || !system || dirty || system.id === library?.activeSystemId} onClick={() => void perform(async () => {
+              <Button variant="outline" disabled={busy || !system || !!conflict} onClick={() => leave({ kind: 'new' })}>New system</Button>
+              <Button disabled={busy || !system || dirty || !!conflict || system.id === library?.activeSystemId} onClick={() => void perform(async () => {
                 const next = await api<RatingSystems>('/rating-systems/active', { method: 'PUT', body: JSON.stringify({ systemId: system!.id }) });
                 setLibrary(next); onCatalog(next.catalog); setNotice(`${system!.name} is now active.`);
               })}>{system?.id === library?.activeSystemId ? 'Active system' : 'Use system'}</Button>
             </div>
+            {conflict && <div role="alert">
+              <p>{conflict === 'deleted' ? 'This system was deleted in another window.' : 'This system was updated in another window.'} Your editor contents are preserved. Save them as a new system, or discard them and reload the saved settings.</p>
+              <Button variant="outline" disabled={busy} onClick={() => { void refreshRef.current?.refresh(true); }}>Discard and reload</Button>
+            </div>}
             {system && <>
               {system.builtIn && <p className="muted">Built-in preset · {ratingModelNote(system.id)} Choose New system to customize a copy.</p>}
               {system.id === hybridSystemId && <p className="muted">An evidence-informed performance index. Goalkeepers use separate GK evidence; Consistency contributes for outfield players. Position familiarity, set-piece taking, feet, morale, and condition are separate. <a href={hybridEvidenceUrl} target="_blank" rel="noreferrer">Research and methodology</a>.</p>}
@@ -222,13 +250,13 @@ export function RatingSystemSettings({ open, onOpenChange, attributes, onCatalog
               </section>)}</div>
               <div className="rating-editor-actions">
                 <span className="muted">{dirty ? 'Unsaved changes' : `${system.roles.length} role profiles`}</span>
-                <Button disabled={busy || system.builtIn || !dirty} onClick={() => void save()}>Save changes</Button>
-                <Button variant="outline" disabled={busy || system.builtIn} onClick={() => openNaming('role')}>Save as new role</Button>
+                <Button disabled={busy || system.builtIn || !dirty || !!conflict} onClick={() => void save()}>Save changes</Button>
+                <Button variant="outline" disabled={busy || system.builtIn || !!conflict} onClick={() => openNaming('role')}>Save as new role</Button>
                 <Button variant="outline" disabled={busy} onClick={() => openNaming('system')}>Save as new system</Button>
               </div>
               {!system.builtIn && <div className="rating-delete-actions">
-                {roleId.startsWith('custom-') && <Button variant="outline" disabled={busy} onClick={() => leave({ kind: 'deleteRole' })}>Delete role</Button>}
-                <Button variant="outline" disabled={busy} onClick={() => leave({ kind: 'deleteSystem' })}>Delete system</Button>
+                {roleId.startsWith('custom-') && <Button variant="outline" disabled={busy || !!conflict} onClick={() => leave({ kind: 'deleteRole' })}>Delete role</Button>}
+                <Button variant="outline" disabled={busy || !!conflict} onClick={() => leave({ kind: 'deleteSystem' })}>Delete system</Button>
               </div>}
             </>}
             {!system && <p className="muted">{busy ? 'Loading rating systems…' : 'Rating systems could not be loaded. Close and reopen Settings to retry.'}</p>}
@@ -244,12 +272,19 @@ export function RatingSystemSettings({ open, onOpenChange, attributes, onCatalog
         {error && <p className="error-text" role="alert">{error}</p>}
         <AlertDialogFooter>
           <Button variant="outline" disabled={busy} onClick={() => setPending(null)}>Keep editing</Button>
-          <Button variant="outline" disabled={busy} onClick={() => {
-            const intent = pending!; setPending(null);
-            if (system) selectSystem(system, roleId);
-            execute(intent);
-          }}>Discard</Button>
-          <Button disabled={busy} onClick={() => void (async () => {
+          <Button variant="outline" disabled={busy} onClick={() => void (async () => {
+            const intent = pending!;
+            if (conflict && intent.kind !== 'close') {
+              const next = await refreshRef.current?.refresh(true);
+              if (!next) return;
+              setPending(null); execute(intent, next.system ?? system);
+            } else {
+              setPending(null);
+              if (system) selectSystem(system, roleId);
+              execute(intent);
+            }
+          })()}>Discard</Button>
+          <Button disabled={busy || !!conflict} onClick={() => void (async () => {
             if (await save()) { const intent = pending!; setPending(null); execute(intent); }
           })()}>Save and continue</Button>
         </AlertDialogFooter>
@@ -260,15 +295,17 @@ export function RatingSystemSettings({ open, onOpenChange, attributes, onCatalog
         <DialogDescription>{naming === 'role' ? 'The original role stays unchanged. Duty and role group are copied.' : 'Save an independent copy under a new name.'}</DialogDescription></DialogHeader>
         <label className="rating-field" htmlFor="rating-copy-name">Name<Input id="rating-copy-name" maxLength={100} value={newName} disabled={busy} onChange={event => setNewName(event.target.value)} /></label>
         {error && <p className="error-text" role="alert">{error}</p>}
-        <Button disabled={busy || !newName.trim()} onClick={() => void saveNamed()}>{busy ? 'Saving…' : 'Save'}</Button>
+        {conflict && naming !== 'system' && <p role="alert">This system changed in another window. Close this dialog to reload the saved settings or save your draft as a new system.</p>}
+        <Button disabled={busy || !newName.trim() || !!conflict && naming !== 'system'} onClick={() => void saveNamed()}>{busy ? 'Saving…' : 'Save'}</Button>
       </DialogContent>
     </Dialog>
     <AlertDialog open={deletion !== null} onOpenChange={next => { if (!next && !busy) setDeletion(null); }}>
       <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete {deletion === 'role' ? role?.name : system?.name}?</AlertDialogTitle>
         <AlertDialogDescription>{deletion === 'role' ? 'This added role will be removed from this system.' : system?.id === library?.activeSystemId ? 'The app will switch back to FM-Arena Hybrid Rating.' : 'This custom system and its role weights will be removed.'}</AlertDialogDescription></AlertDialogHeader>
         {error && <p className="error-text" role="alert">{error}</p>}
+        {conflict && <p role="alert">This system changed in another window. Cancel and reload the saved settings before deleting.</p>}
         <AlertDialogFooter><Button variant="outline" disabled={busy} onClick={() => setDeletion(null)}>Cancel</Button>
-          <Button variant="destructive" disabled={busy} onClick={() => void deleteConfirmed()}>Delete</Button></AlertDialogFooter>
+          <Button variant="destructive" disabled={busy || !!conflict} onClick={() => void deleteConfirmed()}>Delete</Button></AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
   </>;

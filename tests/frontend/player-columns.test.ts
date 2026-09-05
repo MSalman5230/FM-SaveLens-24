@@ -5,6 +5,9 @@ import type { RoleCatalog } from '../../web/lib/scout-api.ts';
 import { columnMatches, defaultColumns, normalizeColumns, playerColumns, restoreColumns, restoreColumnPreferences, resolveColumnSort, sortAfterColumns, visibleSort } from '../../web/lib/player-columns.ts';
 import { playerQuery, selectRole } from '../../web/lib/role-ratings.ts';
 import { currentValue, resourceKey } from '../../web/lib/snapshot-request.ts';
+import { playerSearchQuery } from '../../web/lib/rating-systems.ts';
+import { PlayerPageCache } from '../../web/lib/player-page-cache.ts';
+import type { Results } from '../../web/lib/scout-api.ts';
 
 const catalog = JSON.parse(readFileSync(new URL('../../native/roles.json', import.meta.url), 'utf8')) as RoleCatalog;
 const available = playerColumns(catalog.roles);
@@ -130,20 +133,44 @@ test('clearing role filters falls back visibly while retaining independent visib
   });
 });
 
-test('browser search queries and scoped results use the visible default sort', () => {
+test('browser search and the table share rated queries, scoped results and one cached request', async () => {
   for (const withPA of [true, false]) {
     const ids = withPA ? [...defaultColumns, 'role:af-attack'] : ['name', 'role:af-attack'];
     const sorting = resolveColumnSort(ids, 'pa', 'desc', '');
     const filters = { q: 'Ali', paMin: '150', role: '', roleMin: '' };
-    const query = playerQuery(filters, sorting.sort, sorting.direction, 1, '50', ['af-attack']);
-    const expected = new URLSearchParams({
+    const identity = { systemId: 'custom-forward', systemRevision: 7 };
+    const bestRole = ids.includes('bestRoleRating');
+    const query = playerSearchQuery(filters, sorting.sort, sorting.direction, 1, '50', ['af-attack'], bestRole, identity);
+    const expectedParams = new URLSearchParams({
       sort: withPA ? 'pa' : 'name', direction: withPA ? 'desc' : 'asc', page: '1', limit: '50',
       q: 'Ali', paMin: '150', roles: 'af-attack',
-    }).toString();
+    });
+    if (bestRole) expectedParams.set('bestRole', '1');
+    expectedParams.set('systemId', identity.systemId);
+    expectedParams.set('systemRevision', String(identity.systemRevision));
+    const expected = expectedParams.toString();
     assert.equal(query, expected);
-    const found = { total: 1, players: [{ id: 7 }], page: 1, limit: 50 };
+    const cache = new PlayerPageCache('saveA', identity);
+    let calls = 0;
+    const request = async (path: string): Promise<Results> => {
+      calls++;
+      const params = new URLSearchParams(path.split('?')[1]);
+      assert.equal(params.get('bestRole'), bestRole ? '1' : null);
+      assert.equal(params.get('roles'), 'af-attack');
+      assert.equal(params.get('systemId'), identity.systemId);
+      assert.equal(params.get('systemRevision'), '7');
+      return { ...identity, total: 0, players: [], page: 1, limit: 50 };
+    };
+    const found = await cache.load(query, request);
     const response = { key: resourceKey('saveA', query), value: found };
     assert.equal(currentValue(response, resourceKey('saveA', expected)), found);
+    assert.deepEqual(cache.peek(expected), found);
+    await cache.load(expected, request);
+    assert.equal(calls, 1);
+    const changedQuery = playerSearchQuery(filters, sorting.sort, sorting.direction, 1, '50', ['af-attack'], bestRole, { ...identity, systemRevision: 8 });
+    assert.equal(currentValue(response, resourceKey('saveA', changedQuery)), null);
+    assert.equal(cache.peek(changedQuery), null);
+    cache.clear();
   }
 });
 

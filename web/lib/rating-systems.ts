@@ -1,5 +1,6 @@
 import type { Attribute, RatingIdentity, RatingSystem, RoleCatalog, RoleDefinition } from './scout-api.ts';
 import { normalizeColumns, playerColumns, resolveColumnSort } from './player-columns.ts';
+import { playerQuery } from './role-ratings.ts';
 
 export const builtinSystemId = 'role-highlighted-rating';
 export const hybridSystemId = 'fm-arena-hybrid-rating';
@@ -26,6 +27,14 @@ export const sameRatingSystem = (value: RatingIdentity, catalog: RatingIdentity 
   catalog !== null && value.systemId === catalog.systemId && value.systemRevision === catalog.systemRevision;
 export const ratingParams = (catalog: RatingIdentity | null) => catalog
   ? new URLSearchParams({ systemId: catalog.systemId, systemRevision: String(catalog.systemRevision) }).toString() : '';
+
+/** The table and browser tools must describe exactly the same rated view. */
+export function playerSearchQuery(
+  filters: Record<string, string>, sort: string, direction: string, page: number, limit: string,
+  roles: string[], bestRole: boolean, identity: RatingIdentity | null,
+) {
+  return [playerQuery(filters, sort, direction, page, limit, roles, bestRole), ratingParams(identity)].filter(Boolean).join('&');
+}
 
 export function parseWeights(draft: Record<string, string>, attributes: Attribute[]): Record<string, number> {
   const allowed = new Set(weightAttributes(attributes).map(attribute => attribute.key));
