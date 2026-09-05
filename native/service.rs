@@ -408,6 +408,7 @@ impl AppState {
                 json!({"app":"fm24-scout","productName":"FM SaveLens 24","version":VERSION,"parserVersion":PARSER_VERSION}),
             )),
             ("GET", "/api/attributes") => Ok((200, serde_json::to_value(&*parser::CATALOG)?)),
+            ("GET", "/api/roles") => Ok((200, serde_json::to_value(&*crate::roles::ROLES)?)),
             ("GET", "/api/settings") => {
                 let inner = self.inner.lock().unwrap();
                 let mut v = serde_json::to_value(&inner.settings)?;
