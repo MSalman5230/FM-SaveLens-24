@@ -20,3 +20,9 @@ export function selectPositions(
 export function activeFilterCount(filters: Record<string, string>) {
   return Object.entries(filters).filter(([key, value]) => key !== 'positionMatch' && value).length;
 }
+
+export function advancedFilterCount(filters: Record<string, string>) {
+  const bounds = ['roleMin', 'ageMin', 'ageMax', 'caMin', 'caMax', 'paMin', 'paMax'];
+  return Object.entries(filters).filter(([key, value]) => value && (bounds.includes(key) || key.startsWith('attr_'))).length
+    + (selectedPositions(filters.position ?? '').length >= 2 && filters.positionMatch === 'or' ? 1 : 0);
+}

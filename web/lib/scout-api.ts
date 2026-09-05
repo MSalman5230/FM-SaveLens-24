@@ -45,6 +45,7 @@ export type Player = {
   pa: number;
   roleRating?: number | null;
   roleScores?: Record<string, number | null>;
+  bestRole?: { roleId: string; score: number } | null;
 };
 export type RatingIdentity = { systemId: string; systemRevision: number };
 export type Detail = Player & RatingIdentity & {

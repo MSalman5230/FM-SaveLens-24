@@ -1,15 +1,23 @@
 "use client";
 import { ArrowDown, ArrowUp } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { formatRoleScore } from '@/lib/role-ratings';
+import { formatBestRole, formatRoleScore, roleLabel } from '@/lib/role-ratings';
 import type { PlayerColumn } from '@/lib/player-columns';
-import type { Player } from '@/lib/scout-api';
+import type { Player, RoleDefinition } from '@/lib/scout-api';
 
-export function PlayerListTable({ players, columns, sort, direction, onSort, onOpen }: {
-  players: Player[]; columns: PlayerColumn[]; sort: string; direction: string;
+export function PlayerListTable({ players, columns, roles, sort, direction, onSort, onOpen }: {
+  players: Player[]; columns: PlayerColumn[]; roles: RoleDefinition[]; sort: string; direction: string;
   onSort: (key: string) => void; onOpen: (id: number, roleId?: string) => void;
 }) {
   function cell(player: Player, column: PlayerColumn) {
+    if (column.id === 'bestRoleRating') {
+      const best = player.bestRole;
+      const role = roles.find(role => role.id === best?.roleId);
+      if (!best || !role) return <span className="muted" aria-label="Best role rating unavailable">—</span>;
+      return <button className="role-table-score" title={`${roleLabel(role)} · View attribute breakdown`}
+        aria-label={`Best role rating: ${formatRoleScore(best.score)} out of 100, ${roleLabel(role)}. View breakdown for ${player.name}`}
+        onClick={e => { e.stopPropagation(); onOpen(player.id, best.roleId); }}>{formatBestRole(best.score, role)}</button>;
+    }
     if (column.roleId) {
       const score = player.roleScores?.[column.roleId];
       return <button className="role-table-score" title={score == null ? 'Rating unavailable — view attribute breakdown' : 'View attribute breakdown'}
@@ -30,10 +38,10 @@ export function PlayerListTable({ players, columns, sort, direction, onSort, onO
     <Table>
       <TableHeader>
         <TableRow>{columns.map(column => (
-          <TableHead key={column.id} className={column.roleId ? 'player-column-role' : column.id === 'name' ? 'player-column-name' : ''}
+          <TableHead key={column.id} className={column.roleId || column.id === 'bestRoleRating' ? 'player-column-role' : column.id === 'name' ? 'player-column-name' : ''}
             aria-sort={column.sort && sort === column.sort ? direction === 'asc' ? 'ascending' : 'descending' : undefined}>
             {column.sort ? <button className="sort-button" onClick={() => onSort(column.sort!)} aria-label={`Sort by ${column.label}`}>
-              <span>{column.label}{column.roleId && <small>/ 100</small>}</span>
+              <span>{column.label}{(column.roleId || column.id === 'bestRoleRating') && <small>/ 100</small>}</span>
               {sort === column.sort && (direction === 'asc' ? <ArrowUp size={13} /> : <ArrowDown size={13} />)}
             </button> : column.label}
           </TableHead>
@@ -41,7 +49,7 @@ export function PlayerListTable({ players, columns, sort, direction, onSort, onO
       </TableHeader>
       <TableBody>{players.map(player => (
         <TableRow key={player.id} onClick={() => onOpen(player.id)} className="player-row">
-          {columns.map(column => <TableCell key={column.id} className={column.id === 'name' ? 'player-column-name' : column.roleId || column.id === 'age' || column.id === 'ca' ? 'number' : ''}>{cell(player, column)}</TableCell>)}
+          {columns.map(column => <TableCell key={column.id} className={column.id === 'name' ? 'player-column-name' : column.roleId || column.id === 'bestRoleRating' || column.id === 'age' || column.id === 'ca' ? 'number' : ''}>{cell(player, column)}</TableCell>)}
         </TableRow>
       ))}</TableBody>
     </Table>

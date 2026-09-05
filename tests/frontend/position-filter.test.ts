@@ -1,9 +1,18 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { setImmediate } from 'node:timers/promises';
-import { activeFilterCount, defaultPositionFilters, selectedPositions, selectPositions } from '../../web/lib/position-filter.ts';
+import { activeFilterCount, advancedFilterCount, defaultPositionFilters, selectedPositions, selectPositions } from '../../web/lib/position-filter.ts';
 import { playerQuery } from '../../web/lib/role-ratings.ts';
 import { currentValue, resourceKey, requestSnapshot } from '../../web/lib/snapshot-request.ts';
+
+test('advanced filter count includes active bounds, attributes, and a nondefault multi-position rule', () => {
+  assert.equal(advancedFilterCount({ ...defaultPositionFilters, q: 'Ali', club: '1', nation: '12', role: 'af-attack' }), 0);
+  const filters = { position: '2,4', positionMatch: 'or', ageMin: '0', ageMax: '21', caMin: '', roleMin: '70.5', attr_pace: '16', attr_finishing: '' };
+  assert.equal(advancedFilterCount(filters), 5);
+  assert.equal(advancedFilterCount({ ...filters, positionMatch: 'and' }), 4);
+  assert.equal(advancedFilterCount({ ...filters, position: '2' }), 4);
+  assert.equal(advancedFilterCount(defaultPositionFilters), 0);
+});
 
 test('positions default to AND and do not activate a filter until a position is selected', () => {
   assert.deepEqual(defaultPositionFilters, { position: '', positionMatch: 'and' });

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import type { RoleCatalog } from '../../web/lib/scout-api.ts';
-import { columnMatches, defaultColumns, normalizeColumns, playerColumns, restoreColumns, resolveColumnSort, sortAfterColumns, visibleSort } from '../../web/lib/player-columns.ts';
+import { columnMatches, defaultColumns, normalizeColumns, playerColumns, restoreColumns, restoreColumnPreferences, resolveColumnSort, sortAfterColumns, visibleSort } from '../../web/lib/player-columns.ts';
 import { playerQuery, selectRole } from '../../web/lib/role-ratings.ts';
 import { currentValue, resourceKey } from '../../web/lib/snapshot-request.ts';
 
@@ -11,8 +11,8 @@ const available = playerColumns(catalog.roles);
 
 test('the view accepts all 85 roles together and each duty has its own sortable column', () => {
   const ids = normalizeColumns(available.map(c => c.id), available);
-  assert.equal(ids.length, 92);
-  assert.equal(new Set(ids).size, 92);
+  assert.equal(ids.length, 93);
+  assert.equal(new Set(ids).size, 93);
   for (const role of catalog.roles) {
     const column = available.find(c => c.roleId === role.id)!;
     assert.equal(column.sort, `role:${role.id}`);
@@ -21,6 +21,28 @@ test('the view accepts all 85 roles together and each duty has its own sortable 
   assert.ok(available.filter(c => columnMatches(c, 'advanced playmaker')).length >= 2);
   assert.equal(available.filter(c => columnMatches(c, 'target man')).length, 2);
   assert.equal(available.filter(c => columnMatches(c, 'advanced forward attack')).length, 1);
+});
+
+test('legacy preferences gain the best role once without reordering or restoring a removed column', () => {
+  const legacy = ['name', 'role:ap-support', 'positions', 'pa', 'age'];
+  const migrated = restoreColumnPreferences(null, JSON.stringify(legacy), available);
+  assert.deepEqual(migrated, ['name', 'role:ap-support', 'positions', 'bestRoleRating', 'pa', 'age']);
+  assert.deepEqual(restoreColumnPreferences(JSON.stringify(migrated), JSON.stringify(legacy), available), migrated);
+  assert.deepEqual(restoreColumnPreferences(JSON.stringify(legacy), JSON.stringify(legacy), available), legacy);
+  assert.deepEqual(restoreColumnPreferences(null, '["name","pa"]', available), ['name', 'pa', 'bestRoleRating']);
+  for (const legacyRaw of [null, 'broken', '{}']) {
+    assert.deepEqual(restoreColumnPreferences(null, legacyRaw, available), defaultColumns);
+  }
+  assert.deepEqual(restoreColumnPreferences('[]', JSON.stringify(legacy), available), ['name']);
+  assert.equal(defaultColumns[defaultColumns.indexOf('positions') + 1], 'bestRoleRating');
+});
+
+test('best role sorting survives system reconciliation and falls back when its column is removed', () => {
+  assert.equal(available.find(column => column.id === 'bestRoleRating')?.sort, 'bestRoleRating');
+  for (const direction of ['asc', 'desc']) {
+    assert.deepEqual(resolveColumnSort(defaultColumns, 'bestRoleRating', direction, 'af-attack'), { sort: 'bestRoleRating', direction });
+  }
+  assert.deepEqual(resolveColumnSort(defaultColumns.filter(id => id !== 'bestRoleRating'), 'bestRoleRating', 'asc', ''), { sort: 'pa', direction: 'desc' });
 });
 
 test('saved views restore order, deduplicate roles, discard unknown columns and retain player names', () => {

@@ -2,7 +2,7 @@
 
 The sidebar supports multiple positions, checked options, removable chips, and **Clear positions**. Type a position abbreviation to find it and use the arrow keys and Enter to select it. **AND — All selected** is the default; with two or more selections, you can switch to **OR — Any selected**. No selections means no position restriction. Each selected position uses the same fixed minimum familiarity of **15** (accomplished or natural).
 
-Adding or removing a position or changing the matching mode returns to page 1. Removing the last position, Clear positions, and the sidebar Reset restore AND. The matching mode alone does not count as an active filter. Position changes preserve other filters, sorting, columns, and the selected rating system.
+Adding or removing a position or changing the matching mode returns to page 1. Position chips remain in the horizontal filter bar; matching controls and Clear positions are under **More filters**. Removing the last position, Clear positions, and Reset restore AND. The matching mode alone does not count as an active filter; choosing OR with two or more positions contributes one to the advanced-settings badge. Position changes preserve other filters, sorting, columns, and the selected rating system. Collapsing More filters preserves the matching rule and all other advanced filters.
 
 ## Player query parameters
 

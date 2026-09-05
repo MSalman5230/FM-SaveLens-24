@@ -41,17 +41,33 @@ export function PositionFilter({ positions, value, match, disabled, onChange }: 
           </ComboboxList>
         </ComboboxContent>
       </Combobox>
-      <Button className="clear-positions" variant="ghost" size="sm"
-        disabled={disabled || !value.length} onClick={() => onChange([])}>Clear positions</Button>
+      <span id="position-rule" className="sr-only">
+        {match === 'and' ? 'Every selected position must be 15+' : 'At least one selected position must be 15+.'}
+      </span>
+    </div>
+  );
+}
+
+export function PositionMatching({ value, match, disabled, onChange }: {
+  value: string[];
+  match: PositionMatch;
+  disabled: boolean;
+  onChange: (positions: string[], match?: PositionMatch) => void;
+}) {
+  return (
+    <div className="filter-field position-matching">
+      <span className="filter-label">Position matching</span>
       <RadioGroup className="position-match" aria-label="Position matching"
         value={match} disabled={disabled || value.length < 2}
         onValueChange={mode => onChange(value, mode as PositionMatch)}>
         <label htmlFor="position-match-and"><RadioGroupItem id="position-match-and" value="and" />AND — All selected</label>
         <label htmlFor="position-match-or"><RadioGroupItem id="position-match-or" value="or" />OR — Any selected</label>
       </RadioGroup>
-      <small id="position-rule">
+      <small>
         {match === 'and' ? 'Every selected position must be 15+' : 'At least one selected position must be 15+.'}
       </small>
+      <Button className="clear-positions" variant="ghost" size="sm"
+        disabled={disabled || !value.length} onClick={() => onChange([])}>Clear positions</Button>
     </div>
   );
 }

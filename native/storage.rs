@@ -336,6 +336,7 @@ pub fn search_with_system(
         "name" => "name COLLATE NOCASE".into(),
         "club" => "club COLLATE NOCASE".into(),
         "age" | "ca" | "pa" => sort.to_string(),
+        "bestRoleRating" => best_role_expression(system),
         "roleRating" => {
             if role.is_none() {
                 return Err(Error::query("Select a role before sorting by role rating."));
@@ -356,6 +357,7 @@ pub fn search_with_system(
     }
     let page = integer("page", 1, 100000)?.unwrap_or(1);
     let limit = integer("limit", 1, 250)?.unwrap_or(100);
+    let include_best_role = integer("bestRole", 0, 1)? == Some(1);
     let condition = if clauses.is_empty() {
         String::new()
     } else {
@@ -368,7 +370,8 @@ pub fn search_with_system(
     )?;
     args.extend([limit.into(), ((page - 1) * limit).into()]);
     let score_select = score_expression.as_deref().unwrap_or("NULL");
-    let null_order = if sort == "roleRating" || sort.starts_with("role:") {
+    let null_order = if matches!(sort, "roleRating" | "bestRoleRating") || sort.starts_with("role:")
+    {
         " NULLS LAST"
     } else {
         ""
@@ -400,33 +403,101 @@ pub fn search_with_system(
         }
         players.push(player);
     }
-    // Extra display columns are evaluated only for this page. Sorting/filtering
-    // above still evaluates its selected role across the entire matching set.
-    if !displayed_roles.is_empty() && !players.is_empty() {
-        let expressions = displayed_roles
-            .iter()
-            .map(|r| r.sql_score())
-            .collect::<Vec<_>>()
-            .join(",");
+    // Display scores are evaluated only for this page. Sorting/filtering above
+    // still evaluates the requested score across the entire matching set.
+    let score_roles = if include_best_role {
+        system.roles.iter().collect::<Vec<_>>()
+    } else {
+        displayed_roles.clone()
+    };
+    if !score_roles.is_empty() && !players.is_empty() {
         let placeholders = vec!["?"; players.len()].join(",");
-        let ids = players.iter().map(|p| p["id"].as_u64().unwrap() as i64);
-        let mut scores = db.prepare(&format!(
-            "SELECT id,{expressions} FROM players WHERE id IN ({placeholders})"
-        ))?;
-        let by_player = scores
-            .query_map(params_from_iter(ids), |row| {
+        let ids = players
+            .iter()
+            .map(|p| p["id"].as_u64().unwrap() as i64)
+            .collect::<Vec<_>>();
+        let mut by_player: HashMap<u32, Value> = HashMap::new();
+        // Bound SQL column counts even when a custom system adds many profiles.
+        for batch in score_roles.chunks(64) {
+            let expressions = batch
+                .iter()
+                .map(|r| r.sql_score())
+                .collect::<Vec<_>>()
+                .join(",");
+            let mut scores = db.prepare(&format!(
+                "SELECT id,{expressions} FROM players WHERE id IN ({placeholders})"
+            ))?;
+            let rows = scores.query_map(params_from_iter(&ids), |row| {
                 let mut values = serde_json::Map::new();
-                for (i, role) in displayed_roles.iter().enumerate() {
+                for (i, role) in batch.iter().enumerate() {
                     values.insert(role.id.clone(), json!(row.get::<_, Option<f64>>(i + 1)?));
                 }
-                Ok((row.get::<_, u32>(0)?, Value::Object(values)))
-            })?
-            .collect::<std::result::Result<HashMap<_, _>, _>>()?;
-        attach_role_scores(&mut players, &by_player, &displayed_roles);
+                Ok((row.get::<_, u32>(0)?, values))
+            })?;
+            for row in rows {
+                let (id, values) = row?;
+                by_player
+                    .entry(id)
+                    .or_insert_with(|| json!({}))
+                    .as_object_mut()
+                    .unwrap()
+                    .extend(values);
+            }
+        }
+        if !displayed_roles.is_empty() {
+            attach_role_scores(&mut players, &by_player, &displayed_roles);
+        }
+        if include_best_role {
+            for player in &mut players {
+                let id = player["id"].as_u64().unwrap() as u32;
+                player["bestRole"] = best_role(by_player.get(&id));
+            }
+        }
     }
     let mut result = json!({"total":total,"page":page,"limit":limit,"players":players});
     system.tag(&mut result);
     Ok(result)
+}
+
+fn best_role_expression(system: &crate::rating_systems::RatingSystem) -> String {
+    // Ratings are positive; -1 lets scalar MAX ignore unavailable roles.
+    // Balanced batches avoid function-argument and expression-depth limits.
+    let mut expressions = system
+        .roles
+        .iter()
+        .map(|role| format!("COALESCE({}, -1)", role.sql_score()))
+        .collect::<Vec<_>>();
+    while expressions.len() > 1 {
+        expressions = expressions
+            .chunks(32)
+            .map(|batch| {
+                if batch.len() == 1 {
+                    batch[0].clone()
+                } else {
+                    format!("MAX({})", batch.join(","))
+                }
+            })
+            .collect();
+    }
+    format!(
+        "NULLIF({}, -1)",
+        expressions.first().map(String::as_str).unwrap_or("-1")
+    )
+}
+
+fn best_role(scores: Option<&Value>) -> Value {
+    scores
+        .and_then(Value::as_object)
+        .and_then(|scores| {
+            scores
+                .iter()
+                .filter_map(|(id, score)| score.as_f64().map(|score| (id, score)))
+                .max_by(|(a_id, a), (b_id, b)| a.total_cmp(b).then_with(|| b_id.cmp(a_id)))
+        })
+        .map_or(
+            Value::Null,
+            |(id, score)| json!({"roleId": id, "score": score}),
+        )
 }
 
 fn attach_role_scores(
@@ -436,20 +507,43 @@ fn attach_role_scores(
 ) {
     for player in players {
         let id = player["id"].as_u64().unwrap() as u32;
-        player["roleScores"] = by_player.get(&id).cloned().unwrap_or_else(|| {
-            Value::Object(
-                displayed_roles
-                    .iter()
-                    .map(|role| (role.id.clone(), Value::Null))
-                    .collect(),
-            )
-        });
+        player["roleScores"] = Value::Object(
+            displayed_roles
+                .iter()
+                .map(|role| {
+                    (
+                        role.id.clone(),
+                        by_player
+                            .get(&id)
+                            .and_then(|scores| scores.get(&role.id))
+                            .cloned()
+                            .unwrap_or(Value::Null),
+                    )
+                })
+                .collect(),
+        );
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn best_role_keeps_precision_and_breaks_exact_ties_by_id() {
+        assert_eq!(
+            best_role(Some(
+                &json!({"af-attack":85.41,"ap-support":85.44,"cd-defend":null})
+            )),
+            json!({"roleId":"ap-support","score":85.44})
+        );
+        assert_eq!(
+            best_role(Some(&json!({"ap-support":85.44,"af-attack":85.44}))),
+            json!({"roleId":"af-attack","score":85.44})
+        );
+        assert_eq!(best_role(Some(&json!({"af-attack":null}))), Value::Null);
+        assert_eq!(best_role(None), Value::Null);
+    }
 
     #[test]
     fn missing_role_score_rows_preserve_players_and_return_null_for_every_requested_role() {

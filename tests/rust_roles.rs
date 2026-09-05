@@ -189,6 +189,181 @@ fn snapshot() -> (tempfile::TempDir, PathBuf) {
 }
 
 #[test]
+fn best_role_matches_profiles_and_sorts_before_pagination_in_all_systems() {
+    use fm_savelens_backend::rating_systems::{builtins, RatingStore, BUILTIN};
+    let (_dir, path) = snapshot();
+    let before = fs::read(&path).unwrap();
+    let db = storage::open_snapshot(&path).unwrap();
+    let mut custom_roles = BUILTIN.roles.clone();
+    let mut added = custom_roles
+        .iter()
+        .find(|role| role.id == "af-attack")
+        .unwrap()
+        .clone();
+    added.id = format!("custom-{}", uuid::Uuid::new_v4());
+    added.name = "Finishing specialist".into();
+    added.weights = Some(serde_json::from_value(json!({"finishing": 1})).unwrap());
+    let added_id = added.id.clone();
+    custom_roles.push(added);
+    let custom = RatingStore::default()
+        .create(&json!({"name":"Best role test","roles":custom_roles}))
+        .unwrap();
+    let mut systems = builtins().to_vec();
+    systems.push(&custom);
+    for system in systems {
+        let plain = storage::search_with_system(&db, "limit=250", system).unwrap();
+        let mut expected = plain["players"].as_array().unwrap().clone();
+        for player in &mut expected {
+            assert!(player.get("bestRole").is_none());
+            let detail =
+                storage::player_with_system(&db, player["id"].as_u64().unwrap() as u32, system)
+                    .unwrap();
+            let mut ratings = detail["roleRatings"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|rating| rating["score"].is_number())
+                .collect::<Vec<_>>();
+            ratings.sort_by(|a, b| {
+                b["score"]
+                    .as_f64()
+                    .unwrap()
+                    .total_cmp(&a["score"].as_f64().unwrap())
+                    .then_with(|| a["roleId"].as_str().cmp(&b["roleId"].as_str()))
+            });
+            player["bestRole"] = json!({"roleId":ratings[0]["roleId"],"score":ratings[0]["score"]});
+        }
+        if system.id == custom.id {
+            assert!(expected
+                .iter()
+                .any(|player| player["bestRole"]["roleId"] == added_id));
+        }
+        let display =
+            storage::search_with_system(&db, "bestRole=1&roles=af-attack&limit=250", system)
+                .unwrap();
+        for (actual, expected) in display["players"].as_array().unwrap().iter().zip(&expected) {
+            assert_eq!(actual["id"], expected["id"]);
+            assert_eq!(actual["bestRole"]["roleId"], expected["bestRole"]["roleId"]);
+            near(
+                actual["bestRole"]["score"].as_f64().unwrap(),
+                expected["bestRole"]["score"].as_f64().unwrap(),
+            );
+            assert_eq!(actual["roleScores"].as_object().unwrap().len(), 1);
+        }
+        for direction in ["asc", "desc"] {
+            expected.sort_by(|a, b| {
+                let order = a["bestRole"]["score"]
+                    .as_f64()
+                    .unwrap()
+                    .total_cmp(&b["bestRole"]["score"].as_f64().unwrap());
+                (if direction == "asc" {
+                    order
+                } else {
+                    order.reverse()
+                })
+                .then_with(|| b["ca"].as_u64().cmp(&a["ca"].as_u64()))
+                .then_with(|| a["id"].as_u64().cmp(&b["id"].as_u64()))
+            });
+            for (page, chunk) in expected.chunks(7).enumerate() {
+                let result = storage::search_with_system(
+                    &db,
+                    &format!(
+                        "bestRole=1&sort=bestRoleRating&direction={direction}&limit=7&page={}",
+                        page + 1
+                    ),
+                    system,
+                )
+                .unwrap();
+                assert_eq!(result["total"], expected.len());
+                assert_eq!(result["systemId"], system.id);
+                assert_eq!(result["systemRevision"], system.revision);
+                let rows = result["players"].as_array().unwrap();
+                assert_eq!(rows.len(), chunk.len());
+                for (actual, expected) in rows.iter().zip(chunk) {
+                    assert_eq!(actual["id"], expected["id"]);
+                    assert_eq!(actual["bestRole"]["roleId"], expected["bestRole"]["roleId"]);
+                    near(
+                        actual["bestRole"]["score"].as_f64().unwrap(),
+                        expected["bestRole"]["score"].as_f64().unwrap(),
+                    );
+                    assert!(actual.get("roleScores").is_none());
+                }
+            }
+        }
+        let filtered = storage::search_with_system(
+            &db,
+            "bestRole=1&sort=bestRoleRating&role=ap-support&roleMin=40&caMin=115&limit=250",
+            system,
+        )
+        .unwrap();
+        for actual in filtered["players"].as_array().unwrap() {
+            let original = expected
+                .iter()
+                .find(|player| player["id"] == actual["id"])
+                .unwrap();
+            assert_eq!(actual["bestRole"], original["bestRole"]);
+            assert!(actual["roleRating"].as_f64().unwrap() >= 40.0);
+            assert!(actual["ca"].as_u64().unwrap() >= 115);
+        }
+    }
+    drop(db);
+    assert_eq!(fs::read(&path).unwrap(), before);
+}
+
+#[test]
+fn best_role_ignores_missing_scores_resolves_ties_and_retains_nulls_last() {
+    let (_dir, path) = snapshot();
+    let writer = Connection::open(&path).unwrap();
+    let all_null = CATALOG
+        .attributes
+        .iter()
+        .map(|a| format!("attr_{}=NULL", a.key))
+        .collect::<Vec<_>>()
+        .join(",");
+    writer.execute(&format!("UPDATE players SET {all_null},detail=json_set(detail,'$.attributes',json('{{}}')) WHERE id=1"), []).unwrap();
+    let all_equal = CATALOG
+        .attributes
+        .iter()
+        .map(|a| format!("attr_{}=15", a.key))
+        .collect::<Vec<_>>()
+        .join(",");
+    writer.execute(&format!("UPDATE players SET {all_equal},position_mask=0,detail=json_set(detail,'$.attributes',json(?)) WHERE id=2"), [attributes(15).to_string()]).unwrap();
+    writer.execute("UPDATE players SET attr_finishing=NULL,detail=json_remove(detail,'$.attributes.finishing') WHERE id=3", []).unwrap();
+    drop(writer);
+    let db = storage::open_snapshot(&path).unwrap();
+    for direction in ["asc", "desc"] {
+        let result = storage::search(
+            &db,
+            &format!("bestRole=1&sort=bestRoleRating&direction={direction}&limit=250"),
+        )
+        .unwrap();
+        let rows = result["players"].as_array().unwrap();
+        assert_eq!(rows.last().unwrap()["id"], 1);
+        assert!(rows.last().unwrap()["bestRole"].is_null());
+        assert!(rows[..39]
+            .iter()
+            .all(|player| player["bestRole"]["score"].is_number()));
+        assert_eq!(
+            rows.iter().find(|p| p["id"] == 2).unwrap()["bestRole"],
+            json!({"roleId":"af-attack","score":75.0})
+        );
+    }
+    for query in [
+        "bestRole=1&caMin=200",
+        "bestRole=1&page=999",
+        "sort=bestRoleRating&caMin=200",
+    ] {
+        assert_eq!(storage::search(&db, query).unwrap()["players"], json!([]));
+    }
+    for query in ["bestRole=2", "bestRole=-1", "bestRole=foo", "bestRole=0.5"] {
+        assert!(storage::search(&db, query).is_err(), "{query}");
+    }
+    assert!(storage::search(&db, "bestRole=0").unwrap()["players"][0]
+        .get("bestRole")
+        .is_none());
+}
+
+#[test]
 fn custom_weights_match_sql_filtering_sorting_columns_and_pagination() {
     use fm_savelens_backend::rating_systems::{RatingStore, BUILTIN};
     let (_dir, path) = snapshot();

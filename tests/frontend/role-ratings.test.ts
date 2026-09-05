@@ -5,10 +5,35 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { setImmediate } from 'node:timers/promises';
 import type { RoleCatalog } from '../../web/lib/scout-api.ts';
-import { formatRoleScore, playerQuery, rankedRoles, roleLabel, selectRole } from '../../web/lib/role-ratings.ts';
+import { formatBestRole, formatRoleScore, playerQuery, rankedRoles, roleAbbreviation, roleLabel, selectRole } from '../../web/lib/role-ratings.ts';
 import { currentValue, requestSnapshot, resourceKey } from '../../web/lib/snapshot-request.ts';
 
 const catalog = JSON.parse(readFileSync(new URL('../../native/roles.json', import.meta.url), 'utf8')) as RoleCatalog;
+
+test('best role formatting uses one decimal and a short role code without duty', () => {
+  for (const [id, code] of [['af-attack', 'AF'], ['ap-support', 'AP'], ['cd-defend', 'CD'], ['anchor-defend', 'A'], ['f9-support', 'F9']]) {
+    const role = catalog.roles.find(role => role.id === id)!;
+    assert.equal(roleAbbreviation(role), code);
+    assert.equal(formatBestRole(85.44, role), `85.4 (${code})`);
+    assert.equal(formatBestRole(85, role), `85.0 (${code})`);
+    assert.equal(formatBestRole(null, role), '—');
+    assert.equal(formatBestRole(85.44, { ...role, id: 'custom-profile', name: 'Renamed role' }), `85.4 (${code})`);
+  }
+  assert.equal(formatBestRole(85.4, undefined), '—');
+});
+
+test('best role requests remain independent of filtered and displayed roles and reject stale responses', () => {
+  const filters = { role: 'ap-support', roleMin: '70', position: '12' };
+  const plain = playerQuery(filters, 'pa', 'desc', 2, '50', ['af-attack']);
+  const best = playerQuery(filters, 'bestRoleRating', 'desc', 2, '50', ['af-attack'], true);
+  const params = new URLSearchParams(best);
+  assert.equal(params.get('bestRole'), '1');
+  assert.equal(params.get('role'), 'ap-support');
+  assert.equal(params.get('roles'), 'af-attack');
+  assert.equal(params.get('sort'), 'bestRoleRating');
+  assert.equal(new URLSearchParams(plain).has('bestRole'), false);
+  assert.equal(currentValue({ key: resourceKey('saveA', plain), value: [] }, resourceKey('saveA', best)), null);
+});
 
 test('bundled catalog and research documentation reproduce the archived matrix', () => {
   const result = spawnSync(process.execPath, [fileURLToPath(new URL('../../scripts/role-catalog.mjs', import.meta.url)), '--check'], { encoding: 'utf8', windowsHide: true });
