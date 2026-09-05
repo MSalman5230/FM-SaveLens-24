@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/MSalman5230/FM-SaveLens-24/compare/v1.1.0...v1.2.0) (2026-09-05)
+
+
+### Features
+
+* add FM24 role ratings and customizable player columns ([f1ecd89](https://github.com/MSalman5230/FM-SaveLens-24/commit/f1ecd890b147cce44ee68a4673750b95fc0175c0))
+
 ## [1.1.0](https://github.com/MSalman5230/FM-SaveLens-24/compare/v1.0.0...v1.1.0) (2026-09-05)
 
 
