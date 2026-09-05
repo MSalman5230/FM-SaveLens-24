@@ -1,0 +1,9 @@
+{
+  "bundle": {
+    "resources": { "../target/release/fm-savelens-24-server.exe": "fm-savelens-24-server.exe" },
+    "windows": {
+      "webviewInstallMode": { "type": "downloadBootstrapper" },
+      "nsis": { "installMode": "currentUser", "displayLanguageSelector": false }
+    }
+  }
+}

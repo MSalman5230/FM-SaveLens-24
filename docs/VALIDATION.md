@@ -1,6 +1,26 @@
 # Validation results
 
-Validated on this Windows PC, 5 September 2026 (local time). Parser: **fm24-7**.
+## Rust migration acceptance — 5 September 2026
+
+Parser: **fm24-rust-1**, application version **1.0.0**.
+
+- Compared the complete deterministic Rust parse result against the TypeScript reference for all 62 local saves: all 61 FM24 saves matched, including every player's identities, names, clubs, nationalities, dates, raw and displayed attributes, positions, source offsets, warnings, and structural diagnostics. Runtime and memory measurements are deliberately excluded from equality checks.
+- The remaining FM23 save produced the same expected unsupported-format error.
+- SHA-256 hashes before and after parsing matched for all 62 source files.
+- Six portable synthetic Rust parser and API tests passed on Windows and Ubuntu 22.04, including foreign ownership exclusion, directional sorting, simultaneous imports, and cancellation cleanup. Frontend production build/lint and workspace Clippy passed.
+- The reference API test now targets the Rust server and passed with the private Tactics Creator fixture. The retained TypeScript reference tests also passed, including the screenshot/FMRTE reference values and edited single-name players.
+- Release Please's actual version updaters passed first-release, patch, minor, major, Cargo workspace, npm lockfile, and Tauri metadata synchronization tests. Workflow YAML passed actionlint.
+- The Windows NSIS installer built successfully; the portable ZIP passed its extracted standalone-server check in a path containing spaces. The desktop loaded WebView2 from that ZIP and exposed the complete interface through Windows accessibility. PE dependency inspection confirmed the final server uses the static Visual C++ runtime.
+- Through the Rust browser interface, imported the 67,547-player Salford save, filtered to Abu Suleiman, and opened his full reference profile.
+- The Ubuntu 22.04 AppImage passed browser-server smoke checks both through FUSE and through extraction. A graphical launch under Xvfb rendered the branded interface and first-run folder settings.
+- The GNOME 50 Flatpak built and installed successfully. Its sandbox allowed reading the synthetic save from the home directory and denied writing to it; import, Unicode search, embedded assets, health, and settings checks passed using private app storage. All four local packages passed the release-file inventory check and have SHA-256 checksums.
+- PR #1 exposed Windows checkout line endings in `Cargo.lock` and a Flatpak metadata image-loader failure. The fixes passed three Release Please tests on Windows and Ubuntu 22.04 (including Windows Git checkout emulation), extracted Windows desktop/server checks, and the complete Flatpak packaging and installed-server checks. These are local results; GitHub must rerun CI after the fix is pushed.
+
+Reproduce collection parity with `npm run test:parity -- /path/to/private/saves`. The detailed migration report is written to ignored `.cache/rust-parity.json`; private saves are not included in CI.
+
+## Historical TypeScript validation
+
+The results below were obtained with the **TypeScript fm24-7** implementation on this Windows PC, 5 September 2026 (local time). Its import performance and browser checks are historical evidence, not measurements of the Rust implementation.
 
 ## Real saves
 

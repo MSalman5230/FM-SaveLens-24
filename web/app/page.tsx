@@ -223,7 +223,6 @@ export default function Home() {
         ? old
         : ((
             list.saves.find((s) => s.snapshotId === preferSnapshot) ??
-            list.saves.find((s) => s.name === "Salford - Masood.fm") ??
             list.saves[0]
           )?.id ?? ""),
     );
@@ -244,6 +243,10 @@ export default function Home() {
         ]);
         if (!live) return;
         setFolder(settings.folder);
+        if (!settings.folder) {
+          setFolderDraft("");
+          setSettingsOpen(true);
+        }
         setAttributes(catalog.attributes);
         setPositions(catalog.positions);
         setJob(settings.activeJob);
@@ -524,7 +527,7 @@ export default function Home() {
         <div className="brand">
           <ScanLine size={26} />
           <strong>
-            FM<span>SCOUT</span>
+            FM<span>SAVELENS</span>
           </strong>
           <b>24</b>
         </div>
@@ -993,7 +996,7 @@ export default function Home() {
       </section>
       <footer className="app-footer">
         <span>
-          FM SCOUT 24 <span>·</span> Private, local scouting
+          FM SAVELENS 24 <span>·</span> Private, local scouting
         </span>
         <span>Save files are read only</span>
       </footer>
@@ -1016,7 +1019,7 @@ export default function Home() {
             />
           </label>
           <p className="muted">
-            Extracted data is cached locally in your Windows app data folder. No account or running
+            Extracted data is cached locally in your app data folder. No account or running
             game is needed.
           </p>
           {folderError && (

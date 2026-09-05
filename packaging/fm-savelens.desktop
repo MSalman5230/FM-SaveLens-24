@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=FM SaveLens 24
+Comment=Explore your Football Manager 2024 saves locally
+Exec=fm-savelens-24
+Icon=io.github.MSalman5230.FMSaveLens24
+Terminal=false
+Categories=Utility;
+StartupWMClass=fm-savelens-24

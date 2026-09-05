@@ -1,0 +1,21 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "packages": {
+    ".": {
+      "release-type": "rust",
+      "package-name": "fm-savelens-24",
+      "initial-version": "1.0.0",
+      "include-component-in-tag": false,
+      "include-v-in-tag": true,
+      "extra-files": [
+        "package.json",
+        "web/package.json",
+        "src-tauri/tauri.conf.json",
+        { "type": "json", "path": "package-lock.json", "jsonpath": "$.version" },
+        { "type": "json", "path": "package-lock.json", "jsonpath": "$.packages[''].version" },
+        { "type": "json", "path": "web/package-lock.json", "jsonpath": "$.version" },
+        { "type": "json", "path": "web/package-lock.json", "jsonpath": "$.packages[''].version" }
+      ]
+    }
+  }
+}

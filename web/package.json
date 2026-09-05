@@ -1,6 +1,6 @@
 {
-  "name": "sites-project",
-  "version": "0.1.0",
+  "name": "fm-savelens-24-web",
+  "version": "1.0.0",
   "private": true,
   "engines": {
     "node": ">=22.13.0"
@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "vinext dev",
     "build": "node scripts/build.mjs",
-    "start": "node ../server/index.ts",
+    "start": "npm --prefix .. start",
     "lint": "oxlint",
     "format": "oxfmt"
   },

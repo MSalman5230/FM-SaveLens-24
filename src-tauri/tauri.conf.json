@@ -1,0 +1,24 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "FM SaveLens 24",
+  "version": "1.0.0",
+  "identifier": "io.github.MSalman5230.FMSaveLens24",
+  "build": {
+    "beforeBuildCommand": "npm run build:web",
+    "frontendDist": "../web/dist/client"
+  },
+  "app": {
+    "windows": [],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'",
+      "capabilities": []
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "Utility",
+    "shortDescription": "Explore your Football Manager 2024 saves locally.",
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.ico", "icons/icon.icns"]
+  }
+}

@@ -1,0 +1,36 @@
+app-id: io.github.MSalman5230.FMSaveLens24
+runtime: org.gnome.Platform
+runtime-version: '50'
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: fm-savelens-24
+# Compose metadata on the build host before export (see package-flatpak.sh).
+# GNOME 50's image loader requires a session portal unavailable during builds.
+appstream-compose: false
+finish-args:
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  - --share=ipc
+  - --share=network
+  - --filesystem=home:ro
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin
+  env:
+    CARGO_HOME: /run/build/fm-savelens-24/cargo-home
+modules:
+  - name: fm-savelens-24
+    buildsystem: simple
+    sources:
+      - type: dir
+        path: stage/flatpak-source
+    build-commands:
+      - cargo build --release --offline --locked -p fm-savelens-backend
+      - cargo build --release --offline --locked -p fm-savelens-24
+      - install -Dm755 target/release/fm-savelens-24 /app/bin/fm-savelens-24
+      - install -Dm755 target/release/fm-savelens-24-server /app/bin/fm-savelens-24-server
+      - install -Dm644 fm-savelens.desktop /app/share/applications/io.github.MSalman5230.FMSaveLens24.desktop
+      - install -Dm644 fm-savelens.metainfo.xml /app/share/metainfo/io.github.MSalman5230.FMSaveLens24.metainfo.xml
+      - cp -a share/app-info /app/share/
+      - install -Dm644 src-tauri/icons/128x128@2x.png /app/share/icons/hicolor/256x256/apps/io.github.MSalman5230.FMSaveLens24.png

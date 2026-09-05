@@ -1,0 +1,12 @@
+import {readFileSync} from 'node:fs';
+import assert from 'node:assert/strict';
+const json=p=>JSON.parse(readFileSync(p,'utf8'));
+const version=json('package.json').version;
+assert.match(version,/^\d+\.\d+\.\d+$/);
+for(const path of ['web/package.json','src-tauri/tauri.conf.json','package-lock.json','web/package-lock.json']) assert.equal(json(path).version,version,path);
+for(const path of ['package-lock.json','web/package-lock.json']) assert.equal(json(path).packages[''].version,version,`${path}: root package`);
+for(const path of ['Cargo.toml','src-tauri/Cargo.toml']) assert.equal(readFileSync(path,'utf8').match(/^version\s*=\s*"([^"]+)"/m)?.[1],version,path);
+const lock=readFileSync('Cargo.lock','utf8');
+for(const name of ['fm-savelens-backend','fm-savelens-24']) assert.equal(lock.match(new RegExp(`name = "${name}"\\r?\\nversion = "([^"]+)"`))?.[1],version,`Cargo.lock: ${name}`);
+const tag=process.argv[2];if(tag)assert.equal(tag,`v${version}`,'Release tag must match package versions');
+console.log(`All application versions agree: ${version}`);

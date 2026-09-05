@@ -1,6 +1,6 @@
 # FM24 reader evidence
 
-This is an independently implemented TypeScript reader for the supplied FM24 saves. It uses structural validation and entity ownership checks, rather than transferring FM26 offsets unchanged. It is not a general decoder of every undocumented FM archive revision.
+FM SaveLens 24 uses an independently implemented Rust reader in `native/parser/`, ported from the retained TypeScript development reference in `server/parser/`. The field descriptions below document their shared, verified format boundary. It uses structural validation and entity ownership checks, rather than transferring FM26 offsets unchanged. It is not a general decoder of every undocumented FM archive revision.
 
 ## Archive
 

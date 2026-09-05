@@ -1,0 +1,95 @@
+name: Release
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to rebuild (for example v1.0.0)
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: release
+  cancel-in-progress: false
+jobs:
+  prepare:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      actions: write
+    outputs:
+      created: ${{ steps.release.outputs.release_created || steps.rebuild.outputs.created }}
+      tag: ${{ steps.release.outputs.tag_name || steps.rebuild.outputs.tag }}
+      sha: ${{ steps.release.outputs.sha || steps.rebuild.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Run Release Please
+        if: github.event_name == 'push'
+        id: release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/release-please.mjs
+      - name: Explicitly run checks on generated release PR branches
+        if: steps.release.outputs.prs_created == 'true'
+        uses: actions/github-script@v7
+        env:
+          RELEASE_PRS: ${{ steps.release.outputs.prs }}
+        with:
+          script: |
+            for (const pr of JSON.parse(process.env.RELEASE_PRS || '[]')) {
+              const {data} = await github.rest.pulls.get({...context.repo, pull_number: pr.number});
+              await github.rest.actions.createWorkflowDispatch({...context.repo, workflow_id: 'ci.yml', ref: data.head.ref});
+            }
+      - name: Resolve existing release for recovery
+        if: github.event_name == 'workflow_dispatch'
+        id: rebuild
+        uses: actions/github-script@v7
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        with:
+          script: |
+            const tag = process.env.RELEASE_TAG;
+            if (!/^v\d+\.\d+\.\d+$/.test(tag)) throw new Error('Expected vX.Y.Z');
+            await github.rest.repos.getReleaseByTag({...context.repo, tag});
+            const {data} = await github.rest.repos.getCommit({...context.repo, ref: tag});
+            core.setOutput('tag', tag); core.setOutput('sha', data.sha); core.setOutput('created', 'true');
+  build:
+    needs: prepare
+    if: needs.prepare.outputs.created == 'true'
+    uses: ./.github/workflows/build.yml
+    with:
+      ref: ${{ needs.prepare.outputs.sha }}
+      release_tag: ${{ needs.prepare.outputs.tag }}
+  publish:
+    needs: [prepare, build]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: packages-*
+          path: dist
+          merge-multiple: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Validate artifacts and generate checksums
+        run: node scripts/release-assets.mjs
+      - name: Attach all downloads to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+        run: gh release upload "$RELEASE_TAG" dist/* --clobber

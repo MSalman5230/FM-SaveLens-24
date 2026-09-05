@@ -1,0 +1,114 @@
+name: Build packages
+on:
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        default: ''
+      release_tag:
+        type: string
+        default: ''
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            web/package-lock.json
+      - name: Install Rust toolchain
+        shell: pwsh
+        run: rustup show
+      - uses: Swatinem/rust-cache@v2
+      - run: npm ci
+      - run: npm --prefix web ci
+      - run: npm --prefix web run lint
+      - run: npm run build:web
+      - name: Verify versions
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: node scripts/check-versions.mjs "$env:RELEASE_TAG"
+      - run: cargo fmt --all -- --check
+      - run: cargo test --locked -p fm-savelens-backend
+      - run: node --test tests/release.test.mjs
+      - run: cargo build --release --locked -p fm-savelens-backend
+      - run: npm run tauri -- build --bundles nsis -- --locked
+      - run: cargo clippy --locked --workspace --all-targets -- -D warnings
+      - name: Package portable ZIP and installer
+        run: ./scripts/package-windows.ps1
+      - name: Smoke-test extracted portable server
+        run: node scripts/smoke-package.mjs "packaging/stage/extracted/FM SaveLens 24/fm-savelens-24-server.exe"
+      - name: Verify desktop uses the bundled WebView2 renderer
+        run: ./scripts/smoke-windows-desktop.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages-windows
+          path: dist/*
+          if-no-files-found: error
+  linux:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    steps:
+      - name: Make room for the GNOME SDK and native build outputs
+        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            web/package-lock.json
+      - name: Install build and packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential libssl-dev librsvg2-dev patchelf libfuse2 flatpak flatpak-builder appstream-compose xvfb dbus-x11 file
+          rustup show
+      - uses: Swatinem/rust-cache@v2
+      - run: npm ci
+      - run: npm --prefix web ci
+      - run: npm --prefix web run lint
+      - run: npm run build:web
+      - name: Verify versions
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: node scripts/check-versions.mjs "$RELEASE_TAG"
+      - run: cargo fmt --all -- --check
+      - run: node --test tests/release.test.mjs
+      - run: cargo test --locked -p fm-savelens-backend
+      - run: cargo build --release --locked -p fm-savelens-backend
+      - run: npm run tauri -- build --bundles appimage -- --locked
+      - run: cargo clippy --locked --workspace --all-targets -- -D warnings
+      - name: Prepare AppImage
+        run: |
+          mkdir -p dist
+          version=$(node -p "require('./package.json').version")
+          cp target/release/bundle/appimage/*.AppImage "dist/FM-SaveLens-24-v${version}-linux-x86_64.AppImage"
+          chmod +x dist/*.AppImage
+          node scripts/smoke-package.mjs dist/*.AppImage --browser
+          APPIMAGE_EXTRACT_AND_RUN=1 node scripts/smoke-package.mjs dist/*.AppImage --browser
+      - name: Build Flatpak against GNOME SDK
+        run: bash scripts/package-flatpak.sh
+      - name: Smoke-test installed Flatpak
+        run: |
+          flatpak install --user --noninteractive dist/*.flatpak
+          export FMSAVELENS_SMOKE_SAVE_DIR="$HOME/fm-savelens-smoke-games"
+          cargo run --locked --example synthetic-save -- "$FMSAVELENS_SMOKE_SAVE_DIR/career.fm"
+          flatpak run --command=sh io.github.MSalman5230.FMSaveLens24 -c 'test -r "$FMSAVELENS_SMOKE_SAVE_DIR/career.fm" && ! test -w "$FMSAVELENS_SMOKE_SAVE_DIR/career.fm"'
+          FMSAVELENS_SMOKE_ROOT="$HOME/.var/app/io.github.MSalman5230.FMSaveLens24/data" node scripts/smoke-package.mjs flatpak run --command=fm-savelens-24-server io.github.MSalman5230.FMSaveLens24
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages-linux
+          path: dist/*
+          if-no-files-found: error
