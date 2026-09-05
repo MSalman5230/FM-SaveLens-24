@@ -1,0 +1,15 @@
+{
+  "name": "FM SaveLens 24",
+  "short_name": "SaveLens 24",
+  "description": "Explore your Football Manager 2024 saves locally.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#101516",
+  "theme_color": "#171e20",
+  "icons": [
+    { "src": "/icons/app-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/app-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

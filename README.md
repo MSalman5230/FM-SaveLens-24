@@ -114,6 +114,14 @@ npm start
 
 The root Cargo package contains the reusable library and standalone server. `src-tauri` is the desktop workspace member. Production frontend assets are embedded at compilation. `server/` contains the historical TypeScript parser/API as a development reference; it is not shipped as the application backend.
 
+### App icon
+
+The master artwork is `assets/branding/app-icon.png`. Run `npm run build:icons`
+after changing it to regenerate the Tauri Windows/macOS/Linux icons and browser
+favicons, header image, and home-screen icons. The existing Tauri and Flatpak
+packaging paths consume these generated files. Rebuild the web and desktop app
+to embed the updated artwork in executables and installers.
+
 ### Tests
 
 `npm test` runs portable synthetic Rust parser and API tests on either platform: compressed/plain and malformed archives, ownership, Unicode, attributes, queries, cancellation, source changes, cache reopening, and data-directory locking.

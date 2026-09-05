@@ -1,9 +1,9 @@
 "use client";
+import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { flushSync } from "react-dom";
 import {
   Search,
-  ScanLine,
   FolderOpen,
   Settings2,
   ArrowDown,
@@ -525,7 +525,7 @@ export default function Home() {
     <main className="scout-app">
       <header className="masthead">
         <div className="brand">
-          <ScanLine size={26} />
+          <Image className="brand-icon" src="/icons/app-128.png" alt="" width={40} height={40} />
           <strong>
             FM<span>SAVELENS</span>
           </strong>

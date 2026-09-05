@@ -11,6 +11,7 @@
     "test": "cargo test --locked -p fm-savelens-backend",
     "test:reference": "node --test tests/*.test.ts",
     "test:parity": "node scripts/parity.mjs",
+    "build:icons": "node scripts/build-icons.mjs",
     "build:web": "npm --prefix web run build",
     "build": "npm run build:web && cargo build --release --locked -p fm-savelens-backend",
     "build:desktop": "tauri build",

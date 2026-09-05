@@ -91,6 +91,7 @@ fn main() {
                 Some(tauri::menu::AboutMetadata {
                     name: Some("FM SaveLens 24".into()),
                     version: Some(VERSION.into()),
+                    icon: app.default_window_icon().cloned(),
                     ..Default::default()
                 }),
             )?;
