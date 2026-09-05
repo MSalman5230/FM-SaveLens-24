@@ -1,11 +1,52 @@
 mod support;
 use fm_savelens_backend::{
-    parser::{archive::Archive, parse_save, CATALOG},
-    storage,
+    parser::{archive::Archive, parse_save, CATALOG, PARSER_VERSION},
+    service, storage,
 };
 use serde_json::json;
 use std::fs;
 use tokio_util::sync::CancellationToken;
+
+#[test]
+fn snapshot_metadata_preserves_fractional_source_timestamps() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("timestamp.fm");
+    support::archive(&path, false, "24.3.0+0", 64);
+    let file = fs::OpenOptions::new().write(true).open(&path).unwrap();
+    // This timestamp loses precision with serde_json's default f64 deserializer.
+    let modified = std::time::UNIX_EPOCH + std::time::Duration::new(1_788_551_603, 590_001_300);
+    file.set_times(fs::FileTimes::new().set_modified(modified))
+        .unwrap();
+    let stat = file.metadata().unwrap();
+    let source_mtime = service::mtime(&stat).unwrap();
+    let cancel = CancellationToken::new();
+    let save = parse_save(&path, &cancel, |_, _| {}).unwrap();
+    let dbpath = dir.path().join("snapshot.sqlite");
+    storage::create_snapshot(
+        &dbpath,
+        &save,
+        json!({
+            "sourcePath": path,
+            "sourceSize": stat.len(),
+            "sourceMtime": source_mtime,
+            "parserVersion": PARSER_VERSION,
+        }),
+        &cancel,
+    )
+    .unwrap();
+    let db = storage::open_snapshot(&dbpath).unwrap();
+    let meta = storage::metadata(&db).unwrap();
+    assert_eq!(meta["sourceMtime"].as_f64(), Some(source_mtime));
+    assert_eq!(meta["stale"], false, "{meta}");
+
+    // A timestamp-only change must still invalidate the snapshot at the same size.
+    file.set_times(
+        fs::FileTimes::new().set_modified(modified + std::time::Duration::from_millis(1)),
+    )
+    .unwrap();
+    assert_eq!(file.metadata().unwrap().len(), stat.len());
+    assert_eq!(storage::metadata(&db).unwrap()["stale"], true);
+}
 
 #[test]
 fn compressed_and_plain_records_match_and_query_correctly() {
