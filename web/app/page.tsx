@@ -1136,7 +1136,7 @@ export default function Home() {
                   <TabsTrigger value="roles">Role ratings</TabsTrigger>
                 </TabsList>
                 <TabsContent value="roles">
-                  <RoleRatings key={systemKey} player={detail} roles={roleCatalog?.roles ?? []} attributes={attributes} initialRoleId={detailRole} systemName={roleCatalog?.systemName ?? ''} systemId={roleCatalog?.systemId ?? ''} />
+                  <RoleRatings key={JSON.stringify([detailKey, detailRole, systemKey])} player={detail} roles={roleCatalog?.roles ?? []} initialRoleId={detailRole} systemName={roleCatalog?.systemName ?? ''} />
                 </TabsContent>
                 <TabsContent value="attributes">
               <div className="attribute-groups">

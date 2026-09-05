@@ -875,12 +875,6 @@ h2 {
 .rating-editor-actions > span { margin-right: auto; }
 .rating-delete-actions { justify-content: end; }
 .settings-notice { color: var(--primary); font-size: 14px; }
-.custom-role-breakdown { overflow-x: auto; margin: 8px 0 16px; }
-.custom-role-breakdown table { width: 100%; border-collapse: collapse; font-size: 14px; }
-.custom-role-breakdown caption { text-align: left; margin-bottom: 12px; color: var(--muted-foreground); }
-.custom-role-breakdown th,
-.custom-role-breakdown td { padding: 8px; border-bottom: 1px solid var(--border); text-align: right; font-variant-numeric: tabular-nums; }
-.custom-role-breakdown th:first-child { text-align: left; font-weight: 500; }
 .settings-label {
   font-size: 13px;
   display: grid;
@@ -906,8 +900,7 @@ h2 {
   padding: 8px 14px;
   font-size: 14px;
 }
-.role-model-note,
-.role-calculation {
+.role-model-note {
   color: var(--muted-foreground);
   font-size: 14px;
   line-height: 1.6;
@@ -941,6 +934,7 @@ h2 {
   flex: 1;
   min-width: 0;
   font-size: 14px;
+  overflow-wrap: anywhere;
 }
 .role-name small {
   display: block;
@@ -960,56 +954,46 @@ h2 {
   font-size: 14px;
   margin-top: 8px;
 }
-.role-tiers {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(230px, 100%), 1fr));
-  gap: 12px;
-  margin: 8px 0 16px;
+.role-position-group {
+  margin-top: 24px;
 }
-.role-tiers section {
-  border-radius: 6px;
-  padding: 14px;
-}
-.role-key {
-  background: #20392c;
-  border: 1px solid #417455;
-  color: #c2efd0;
-}
-.role-preferable {
-  background: #20323f;
-  border: 1px solid #426b86;
-  color: #c4e5ff;
-}
-.role-tiers h4 {
-  display: flex;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 6px;
-  font-size: 14px;
+.role-position-group > h3 {
+  color: var(--muted-foreground);
+  font-size: 13px;
   font-weight: 600;
-  margin: 0 0 10px;
+  letter-spacing: 0.04em;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
 }
-.role-tiers h4 span {
-  font-weight: 400;
-}
-.role-tiers ul {
+.role-duties {
   list-style: none;
-  padding: 0;
   margin: 0;
+  padding: 0 4px 4px;
 }
-.role-tiers li {
+.role-duty {
   display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 4px 0;
-  font-size: 14px;
+  padding: 8px 12px;
+  border: 1px solid transparent;
+  border-radius: 6px;
 }
-.role-tiers strong,
-.role-calculation {
-  font-variant-numeric: tabular-nums;
+.role-duty[data-selected] {
+  background: var(--accent);
+  border-color: var(--primary);
 }
-.role-calculation strong {
-  color: var(--primary);
+.role-duty-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.role-duty-name small {
+  display: block;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.role-duty .role-score {
+  flex-shrink: 0;
 }
 .role-ratings > .role-model-note:last-child {
   margin-top: 22px;
