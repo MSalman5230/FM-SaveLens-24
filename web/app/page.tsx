@@ -33,13 +33,6 @@ import {
   ComboboxEmpty,
 } from "@/components/ui/combobox";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import {
   Sheet,
   SheetContent,
   SheetHeader,
@@ -48,10 +41,12 @@ import {
 } from "@/components/ui/sheet";
 import { Progress, ProgressLabel, ProgressValue } from "@/components/ui/progress";
 import { Pagination, PaginationContent, PaginationItem } from "@/components/ui/pagination";
-import { api, date, size } from "@/lib/scout-api";
+import { api, ApiError, date, size } from "@/lib/scout-api";
 import { watchSnapshotFocus } from "@/lib/focus-refresh";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { RoleRatings } from "@/components/role-ratings";
+import { RatingSystemSettings } from "@/components/rating-system-settings";
+import { ratingIdentity, ratingParams, reconcileRatingView, sameRatingSystem } from "@/lib/rating-systems";
 import { playerQuery, roleLabel, selectRole } from "@/lib/role-ratings";
 import { PlayerColumnChooser } from "@/components/player-column-chooser";
 import { PlayerListTable } from "@/components/player-list-table";
@@ -189,6 +184,12 @@ export default function Home() {
   const [attributes, setAttributes] = useState<Attribute[]>([]),
     [positions, setPositions] = useState<string[]>([]);
   const [roleCatalog, setRoleCatalog] = useState<RoleCatalog | null>(null);
+  const applyRoleCatalog = useCallback((next: RoleCatalog) => {
+    setRoleCatalog(previous => sameRatingSystem(next, previous) ? previous : next);
+  }, []);
+  const refreshRoleCatalog = useCallback(async () => {
+    applyRoleCatalog(await api<RoleCatalog>('/roles'));
+  }, [applyRoleCatalog]);
   const [columnIds, setColumnIds] = useState<string[]>(defaultColumns);
   const availableColumns = useMemo(() => playerColumns(roleCatalog?.roles ?? []), [roleCatalog]);
   const displayedColumns = useMemo(() => columnIds.flatMap(id => availableColumns.filter(column => column.id === id)), [columnIds, availableColumns]);
@@ -221,7 +222,9 @@ export default function Home() {
     jobStatus = job?.status,
     snapshotId = snapshot?.snapshotId;
   const running = jobStatus === "running";
-  const detailKey = resourceKey(snapshotId, detailId);
+  const systemKey = ratingIdentity(roleCatalog);
+  const systemQuery = ratingParams(roleCatalog);
+  const detailKey = resourceKey(snapshotId, `${detailId}:${systemKey}`);
   const detail = currentValue(detailResponse, detailKey);
   const chosen = saves.find((s) => s.id === selected);
   const applySaves = useCallback((files: SaveFile[], preferSnapshot?: string) => {
@@ -324,7 +327,28 @@ export default function Home() {
       setSaves: applySaves,
     });
   }, [snapshotId, applySaves]);
-  const query = useMemo(() => playerQuery(filters, sort, direction, page, limit, displayedRoleIds), [filters, sort, direction, page, limit, displayedRoleIds]);
+  const [viewSystemKey, setViewSystemKey] = useState('');
+  if (roleCatalog && viewSystemKey !== systemKey) {
+    setViewSystemKey(systemKey);
+    const next = reconcileRatingView(roleCatalog, filters, columnIds, sort, direction);
+    setFilters(next.filters);
+    setColumnIds(next.columnIds);
+    setSort(next.sort);
+    setDirection(next.direction);
+    setDetailRole(previous => roleCatalog.roles.some(role => role.id === previous) ? previous : '');
+    setPage(1);
+  }
+  useEffect(() => {
+    if (initializing) return;
+    try { window.localStorage.setItem(columnStorageKey, JSON.stringify(columnIds)); } catch { /* Device preferences are optional. */ }
+  }, [columnIds, initializing]);
+  // Another local window may change the workspace's active system.
+  useEffect(() => {
+    const refresh = () => { void refreshRoleCatalog().catch(e => setError(errorText(e))); };
+    window.addEventListener('focus', refresh);
+    return () => window.removeEventListener('focus', refresh);
+  }, [refreshRoleCatalog]);
+  const query = useMemo(() => [playerQuery(filters, sort, direction, page, limit, displayedRoleIds), systemQuery].filter(Boolean).join('&'), [filters, sort, direction, page, limit, displayedRoleIds, systemQuery]);
   const searchKey = resourceKey(snapshotId, query);
   const result = currentValue(searchResponse, searchKey);
   // Remote request state must reset whenever a new search starts.
@@ -333,27 +357,40 @@ export default function Home() {
     // oxlint-disable-next-line react/react-compiler -- reset state for this remote request
     setSearching(Boolean(snapshotId));
     setSearchError("");
-    if (!snapshotId) return;
+    if (!snapshotId || !roleCatalog) return;
     return requestSnapshot<Results>({
       path: `/snapshots/${snapshotId}/players?${query}`, request: api, delay: 200,
-      onValue: value => setSearchResponse({ key: searchKey, value }),
-      onError: e => { setSearchError(errorText(e)); setSearchResponse(null); },
+      onValue: value => {
+        if (sameRatingSystem(value, roleCatalog)) setSearchResponse({ key: searchKey, value });
+        else void refreshRoleCatalog().catch(e => setSearchError(errorText(e)));
+      },
+      onError: e => {
+        setSearchResponse(null);
+        if (e instanceof ApiError && e.status === 409) void refreshRoleCatalog().catch(error => setSearchError(errorText(error)));
+        else setSearchError(errorText(e));
+      },
       onSettled: () => setSearching(false),
     });
-  }, [snapshotId, query, searchKey]);
+  }, [snapshotId, query, searchKey, roleCatalog, refreshRoleCatalog]);
   // Clear the previous player's remote data before requesting another identity.
   // oxlint-disable-next-line react/react-compiler
   useEffect(() => {
     // oxlint-disable-next-line react/react-compiler -- prevent displaying the previous identity
     setDetailResponse(null);
     setDetailError("");
-    if (detailId === null || !snapshotId) return;
+    if (detailId === null || !snapshotId || !roleCatalog) return;
     return requestSnapshot<Detail>({
-      path: `/snapshots/${snapshotId}/players/${detailId}`, request: api,
-      onValue: value => setDetailResponse({ key: detailKey, value }),
-      onError: e => setDetailError(errorText(e)),
+      path: `/snapshots/${snapshotId}/players/${detailId}?${systemQuery}`, request: api,
+      onValue: value => {
+        if (sameRatingSystem(value, roleCatalog)) setDetailResponse({ key: detailKey, value });
+        else void refreshRoleCatalog().catch(e => setDetailError(errorText(e)));
+      },
+      onError: e => {
+        if (e instanceof ApiError && e.status === 409) void refreshRoleCatalog().catch(error => setDetailError(errorText(error)));
+        else setDetailError(errorText(e));
+      },
     });
-  }, [detailId, snapshotId, detailKey]);
+  }, [detailId, snapshotId, detailKey, systemQuery, roleCatalog, refreshRoleCatalog]);
   function openPlayer(id: number, roleId?: string) {
     setDetailRole(roleId ?? (sort.startsWith('role:') ? sort.slice(5) : filters.role));
     setDetailId(id);
@@ -855,7 +892,7 @@ export default function Home() {
                   ? `${snapshot.sourceName} · ${snapshot.playerCount.toLocaleString()} players indexed`
                   : "Choose a save to explore its player database"}
               </p>
-              {selectedRole && <p className="selected-role-caption">{roleLabel(selectedRole)} · SaveLens role rating / 100</p>}
+              {roleCatalog && <p className="selected-role-caption">{selectedRole ? `${roleLabel(selectedRole)} · ` : ''}{roleCatalog.systemName} · / 100</p>}
             </div>
             <div className="results-tools">
               <PlayerColumnChooser columns={availableColumns} selected={columnIds} onChange={changeColumns} disabled={!roleCatalog} />
@@ -973,14 +1010,7 @@ export default function Home() {
         <span>Save files are read only</span>
       </footer>
 
-      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent className="settings-dialog">
-          <DialogHeader>
-            <DialogTitle>Workspace settings</DialogTitle>
-            <DialogDescription>
-              Choose the folder containing your Football Manager 2024 saves.
-            </DialogDescription>
-          </DialogHeader>
+      <RatingSystemSettings open={settingsOpen} onOpenChange={setSettingsOpen} attributes={attributes} onCatalog={applyRoleCatalog}>
           <label className="settings-label" htmlFor="save-folder-path">
             Save folder
             <Input
@@ -1006,8 +1036,7 @@ export default function Home() {
             {savingFolder ? "Saving…" : "Save folder"}
           </Button>
           {running && <p className="muted">Wait for the current import before changing folders.</p>}
-        </DialogContent>
-      </Dialog>
+      </RatingSystemSettings>
       <Sheet
         open={detailId !== null}
         onOpenChange={(open) => {
@@ -1075,7 +1104,7 @@ export default function Home() {
                   <TabsTrigger value="roles">Role ratings</TabsTrigger>
                 </TabsList>
                 <TabsContent value="roles">
-                  <RoleRatings player={detail} roles={roleCatalog?.roles ?? []} attributes={attributes} initialRoleId={detailRole} />
+                  <RoleRatings key={systemKey} player={detail} roles={roleCatalog?.roles ?? []} attributes={attributes} initialRoleId={detailRole} systemName={roleCatalog?.systemName ?? ''} builtIn={roleCatalog?.builtIn ?? true} />
                 </TabsContent>
                 <TabsContent value="attributes">
               <div className="attribute-groups">

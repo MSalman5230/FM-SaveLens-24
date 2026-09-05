@@ -2,12 +2,15 @@
 use crate::{parser::CATALOG, Error, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{collections::HashSet, sync::LazyLock};
+use std::{
+    collections::{BTreeMap, HashSet},
+    sync::LazyLock,
+};
 
 const KEY_WEIGHT: u8 = 2;
 const PREFERABLE_WEIGHT: u8 = 1;
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Role {
     pub id: String,
@@ -19,9 +22,11 @@ pub struct Role {
     pub preferable_attributes: Vec<String>,
     pub source: String,
     pub source_role: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub weights: Option<BTreeMap<String, f64>>,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RoleCatalog {
     pub version: String,
@@ -97,20 +102,29 @@ pub fn find(id: &str) -> Result<&'static Role> {
 }
 
 impl Role {
-    fn weighted_attributes(&self) -> impl Iterator<Item = (&str, u8)> {
-        self.key_attributes
-            .iter()
-            .map(|key| (key.as_str(), KEY_WEIGHT))
-            .chain(
-                self.preferable_attributes
+    pub fn weighted_attributes(&self) -> Box<dyn Iterator<Item = (&str, f64)> + '_> {
+        if let Some(weights) = &self.weights {
+            return Box::new(
+                weights
                     .iter()
-                    .map(|key| (key.as_str(), PREFERABLE_WEIGHT)),
-            )
+                    .filter(|(_, weight)| **weight > 0.0)
+                    .map(|(key, weight)| (key.as_str(), *weight)),
+            );
+        }
+        Box::new(
+            self.key_attributes
+                .iter()
+                .map(|key| (key.as_str(), f64::from(KEY_WEIGHT)))
+                .chain(
+                    self.preferable_attributes
+                        .iter()
+                        .map(|key| (key.as_str(), f64::from(PREFERABLE_WEIGHT))),
+                ),
+        )
     }
 
-    fn denominator(&self) -> usize {
-        usize::from(KEY_WEIGHT) * self.key_attributes.len()
-            + usize::from(PREFERABLE_WEIGHT) * self.preferable_attributes.len()
+    fn denominator(&self) -> f64 {
+        self.weighted_attributes().map(|(_, weight)| weight).sum()
     }
 
     pub fn rate(&self, attributes: &Value) -> RoleRating {
@@ -119,7 +133,7 @@ impl Role {
         for (key, weight) in self.weighted_attributes() {
             match attributes.get(key).and_then(Value::as_f64) {
                 Some(value) if value.is_finite() && (1.0..=20.0).contains(&value) => {
-                    total += value * f64::from(weight);
+                    total += value * weight;
                 }
                 _ => missing_attributes.push(key.to_string()),
             }
@@ -128,12 +142,13 @@ impl Role {
             role_id: self.id.clone(),
             score: missing_attributes
                 .is_empty()
-                .then(|| 5.0 * total / self.denominator() as f64),
+                .then(|| 5.0 * total / self.denominator()),
             missing_attributes,
         }
     }
 
-    // Only call on a role obtained from ROLES/find, which validates every identifier.
+    // Only call with a bundled or validated custom role. Attribute identifiers
+    // and numeric weights must never come from unvalidated request data.
     pub(crate) fn sql_score(&self) -> String {
         let valid = self
             .weighted_attributes()

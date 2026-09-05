@@ -8,6 +8,8 @@ Rate players for all **45 FM24 roles / 85 role-and-duty profiles**. Select a rol
 
 Use **Edit columns** above the player list to tick player details and any number of role ratings, including multiple duties for the same role. Click a role heading to sort, or a score to open its attribute breakdown. Player names stay visible while scrolling sideways, and your column view is remembered on this device. **Reset view** restores the default columns.
 
+In **Settings → Rating systems**, copy the protected **Role Highlighted Rating** preset to create a named system with your own attribute weights. Include standard attributes, both foot strengths, and Consistency; use zero to exclude an attribute. Save edited roles as new roles, then choose **Use system** to apply your weights to player ratings, filters, sorting, and columns. Systems stay saved locally across imports and restarts. See [custom rating systems](docs/RATING_SYSTEMS.md).
+
 ## How to run
 
 Download a build from [GitHub Releases](https://github.com/MSalman5230/FM-SaveLens-24/releases). Packaged builds need neither Node.js nor Rust.

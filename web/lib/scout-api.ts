@@ -46,7 +46,8 @@ export type Player = {
   roleRating?: number | null;
   roleScores?: Record<string, number | null>;
 };
-export type Detail = Player & {
+export type RatingIdentity = { systemId: string; systemRevision: number };
+export type Detail = Player & RatingIdentity & {
   fullName: string;
   birthDate: string;
   positionRatings: number[];
@@ -63,23 +64,38 @@ export type RoleDefinition = {
   preferableAttributes: string[];
   source: string;
   sourceRole: string;
+  weights?: Record<string, number>;
 };
 export type RoleRating = {
   roleId: string;
   score: number | null;
   missingAttributes: string[];
 };
-export type RoleCatalog = {
+export type RoleCatalog = RatingIdentity & {
+  systemName: string;
+  builtIn: boolean;
   version: string;
   modelVersion: string;
   gameVersion: string;
-  keyWeight: number;
-  preferableWeight: number;
+  keyWeight?: number;
+  preferableWeight?: number;
   scale: number;
   sources: { id: string; title: string; url: string; accessed?: string }[];
   roles: RoleDefinition[];
 };
-export type Results = {
+export type RatingSystem = {
+  id: string;
+  name: string;
+  revision: number;
+  builtIn: boolean;
+  roles: RoleDefinition[];
+};
+export type RatingSystems = {
+  activeSystemId: string;
+  systems: (Omit<RatingSystem, 'roles'> & { roleCount: number })[];
+  catalog: RoleCatalog;
+};
+export type Results = RatingIdentity & {
   total: number;
   page: number;
   limit: number;
@@ -91,8 +107,12 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch('/api' + path, { ...init, headers });
   const value = (await response.json()) as T & { error?: string };
   if (!response.ok)
-    throw new Error(value.error || `Request failed (${response.status})`);
+    throw new ApiError(value.error || `Request failed (${response.status})`, response.status);
   return value;
+}
+export class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) { super(message); this.status = status; }
 }
 export const date = (value: string) =>
   new Date(

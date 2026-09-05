@@ -162,16 +162,35 @@ pub fn metadata(db: &Connection) -> Result<Value> {
     Ok(m)
 }
 pub fn player(db: &Connection, id: u32) -> Result<Value> {
+    player_with_system(db, id, &crate::rating_systems::BUILTIN)
+}
+pub fn player_with_system(
+    db: &Connection,
+    id: u32,
+    system: &crate::rating_systems::RatingSystem,
+) -> Result<Value> {
     use rusqlite::OptionalExtension;
     let raw: Option<String> = db
         .query_row("SELECT detail FROM players WHERE id=?", [id], |r| r.get(0))
         .optional()?;
     let raw = raw.ok_or_else(|| Error::new("NOT_FOUND", "Player not found."))?;
     let mut detail: Value = serde_json::from_str(&raw)?;
-    detail["roleRatings"] = serde_json::to_value(crate::roles::rate_all(&detail["attributes"]))?;
+    detail["roleRatings"] = json!(system
+        .roles
+        .iter()
+        .map(|role| role.rate(&detail["attributes"]))
+        .collect::<Vec<_>>());
+    system.tag(&mut detail);
     Ok(detail)
 }
 pub fn search(db: &Connection, query: &str) -> Result<Value> {
+    search_with_system(db, query, &crate::rating_systems::BUILTIN)
+}
+pub fn search_with_system(
+    db: &Connection,
+    query: &str,
+    system: &crate::rating_systems::RatingSystem,
+) -> Result<Value> {
     let mut params = HashMap::new();
     for (k, v) in url::form_urlencoded::parse(query.as_bytes()) {
         params.entry(k.into_owned()).or_insert(v.into_owned());
@@ -197,13 +216,13 @@ pub fn search(db: &Connection, query: &str) -> Result<Value> {
     let role = params
         .get("role")
         .filter(|s| !s.is_empty())
-        .map(|id| crate::roles::find(id))
+        .map(|id| system.find(id))
         .transpose()?;
     let score_expression = role.map(|r| r.sql_score());
     let mut displayed_roles = vec![];
     if let Some(ids) = params.get("roles").filter(|s| !s.is_empty()) {
         for id in ids.split(',') {
-            let displayed = crate::roles::find(id)?;
+            let displayed = system.find(id)?;
             if !displayed_roles
                 .iter()
                 .any(|r: &&crate::roles::Role| r.id == displayed.id)
@@ -294,7 +313,7 @@ pub fn search(db: &Connection, query: &str) -> Result<Value> {
             }
             "roleRating".into()
         }
-        key if key.starts_with("role:") => crate::roles::find(&key[5..])?.sql_score(),
+        key if key.starts_with("role:") => system.find(&key[5..])?.sql_score(),
         key if CATALOG.attributes.iter().any(|a| a.key == key) => format!("attr_{key}"),
         _ => return Err(Error::query("Unsupported sort column.")),
     };
@@ -376,7 +395,9 @@ pub fn search(db: &Connection, query: &str) -> Result<Value> {
             .collect::<std::result::Result<HashMap<_, _>, _>>()?;
         attach_role_scores(&mut players, &by_player, &displayed_roles);
     }
-    Ok(json!({"total":total,"page":page,"limit":limit,"players":players}))
+    let mut result = json!({"total":total,"page":page,"limit":limit,"players":players});
+    system.tag(&mut result);
+    Ok(result)
 }
 
 fn attach_role_scores(

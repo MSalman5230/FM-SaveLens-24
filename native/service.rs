@@ -1,5 +1,6 @@
 use crate::{
     parser::{self, archive::check, PARSER_VERSION},
+    rating_systems::RatingStore,
     storage, Error, Result, APP_ID, VERSION,
 };
 use axum::{
@@ -114,6 +115,7 @@ struct Active {
 }
 struct Inner {
     settings: Settings,
+    ratings: RatingStore,
     jobs: BTreeMap<String, Job>,
     active: Option<Active>,
     shutting_down: bool,
@@ -163,10 +165,12 @@ impl AppState {
                 last_snapshot: None,
             }
         };
+        let ratings = RatingStore::load(&data)?;
         let app = Arc::new(Self {
             data,
             inner: Mutex::new(Inner {
                 settings,
+                ratings,
                 jobs: BTreeMap::new(),
                 active: None,
                 shutting_down: false,
@@ -408,7 +412,26 @@ impl AppState {
                 json!({"app":"fm24-scout","productName":"FM SaveLens 24","version":VERSION,"parserVersion":PARSER_VERSION}),
             )),
             ("GET", "/api/attributes") => Ok((200, serde_json::to_value(&*parser::CATALOG)?)),
-            ("GET", "/api/roles") => Ok((200, serde_json::to_value(&*crate::roles::ROLES)?)),
+            ("GET", "/api/roles") => {
+                Ok((200, self.inner.lock().unwrap().ratings.active().catalog()))
+            }
+            ("GET", "/api/rating-systems") => Ok((200, self.inner.lock().unwrap().ratings.list())),
+            ("POST", "/api/rating-systems") => {
+                let mut inner = self.inner.lock().unwrap();
+                let mut next = inner.ratings.clone();
+                let system = next.create(&body)?;
+                next.persist(&self.data)?;
+                inner.ratings = next;
+                Ok((201, json!(system)))
+            }
+            ("PUT", "/api/rating-systems/active") => {
+                let mut inner = self.inner.lock().unwrap();
+                let mut next = inner.ratings.clone();
+                next.activate(body["systemId"].as_str().unwrap_or(""))?;
+                next.persist(&self.data)?;
+                inner.ratings = next;
+                Ok((200, inner.ratings.list()))
+            }
             ("GET", "/api/settings") => {
                 let inner = self.inner.lock().unwrap();
                 let mut v = serde_json::to_value(&inner.settings)?;
@@ -448,6 +471,24 @@ impl AppState {
             )),
             _ => {
                 let parts: Vec<_> = path.trim_start_matches('/').split('/').collect();
+                if parts.len() == 3 && parts[1] == "rating-systems" {
+                    let mut inner = self.inner.lock().unwrap();
+                    if method == "GET" {
+                        return Ok((200, json!(inner.ratings.find(parts[2])?)));
+                    }
+                    let mut next = inner.ratings.clone();
+                    let result = match method {
+                        "PUT" => json!(next.update(parts[2], &body)?),
+                        "DELETE" => {
+                            next.delete(parts[2])?;
+                            next.list()
+                        }
+                        _ => return Err(Error::new("NOT_FOUND", "Not found.")),
+                    };
+                    next.persist(&self.data)?;
+                    inner.ratings = next;
+                    return Ok((200, result));
+                }
                 if parts.len() == 3 && parts[1] == "imports" {
                     if method == "DELETE" {
                         return Ok((200, json!(self.cancel(parts[2])?)));
@@ -469,14 +510,31 @@ impl AppState {
                     && (parts.len() == 3 || parts[3] == "players")
                 {
                     let db = storage::open_snapshot(&self.db_path(parts[2])?)?;
+                    // One immutable definition per request, including SQL queries
+                    // and response identity. Never hold the workspace lock during SQL.
+                    let system = self.inner.lock().unwrap().ratings.active().clone();
+                    if parts.len() > 3 {
+                        for (key, value) in url::form_urlencoded::parse(query.as_bytes()) {
+                            if (key == "systemId" && value != system.id)
+                                || (key == "systemRevision"
+                                    && value.parse::<u64>().ok() != Some(system.revision))
+                            {
+                                return Err(Error::new(
+                                    "CONFLICT",
+                                    "The active rating system changed. Refresh ratings.",
+                                ));
+                            }
+                        }
+                    }
                     let result = match parts.len() {
                         3 => storage::metadata(&db)?,
-                        4 => storage::search(&db, query)?,
-                        _ => storage::player(
+                        4 => storage::search_with_system(&db, query, &system)?,
+                        _ => storage::player_with_system(
                             &db,
                             parts[4]
                                 .parse()
                                 .map_err(|_| Error::new("NOT_FOUND", "Player not found."))?,
+                            &system,
                         )?,
                     };
                     return Ok((200, result));
@@ -515,6 +573,7 @@ fn json_response(status: u16, value: Value) -> Response {
 fn error_response(e: Error) -> Response {
     let status = match e.code.as_str() {
         "INVALID_QUERY" => 400,
+        "CONFLICT" => 409,
         "NOT_FOUND" => 404,
         "SHUTTING_DOWN" => 503,
         _ => 500,
@@ -552,6 +611,8 @@ async fn handle(State(state): State<HttpState>, req: Request<Body>) -> Response 
     let method = req.method().to_string();
     if path.starts_with("/api/") {
         let needs_body = (method == "PUT" && path == "/api/settings")
+            || (matches!(method.as_str(), "POST" | "PUT")
+                && (path == "/api/rating-systems" || path.starts_with("/api/rating-systems/")))
             || (method == "POST" && path == "/api/imports");
         let body = if needs_body {
             if !req
@@ -562,7 +623,12 @@ async fn handle(State(state): State<HttpState>, req: Request<Body>) -> Response 
             {
                 return json_response(400, json!({"error":"Expected JSON."}));
             }
-            match to_bytes(req.into_body(), 65536).await {
+            let body_limit = if path.starts_with("/api/rating-systems") {
+                4 * 1024 * 1024
+            } else {
+                65536
+            };
+            match to_bytes(req.into_body(), body_limit).await {
                 Ok(b) => match serde_json::from_slice::<Value>(&b) {
                     Ok(v) if v.is_object() => v,
                     _ => return json_response(400, json!({"error":"Expected a JSON object."})),

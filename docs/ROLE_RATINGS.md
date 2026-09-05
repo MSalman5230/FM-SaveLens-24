@@ -1,6 +1,8 @@
 # FM24 role ratings
 
-45 roles, 85 fixed role-and-duty profiles. Catalog version: fm24-roles-1; model: key2-preferable1-v1.
+The protected **Role Highlighted Rating** preset contains 45 roles and 85 role-and-duty profiles. Catalog version: fm24-roles-1; model: key2-preferable1-v1.
+
+Create custom weights and additional named roles in **Settings → Rating systems**. See [custom rating systems](RATING_SYSTEMS.md) for the editor, generalized formula, persistence, and API. The research, highlights, and 2:1 formula below describe the built-in preset.
 
 ## Research and interpretation
 

@@ -363,6 +363,16 @@ async fn api_import_cache_security_and_shutdown() {
     assert!(service::start(0, &data).await.is_err());
     let url = server.url();
     let client = reqwest::Client::new();
+    value(
+        client
+            .post(format!("{url}/api/rating-systems"))
+            .json(&json!({"name":"Saved scouting weights"}))
+            .send()
+            .await
+            .unwrap(),
+    )
+    .await;
+    let saved_ratings = fs::read(data.join("rating-systems.json")).unwrap();
     assert_eq!(
         client
             .get(format!("{url}/api/health"))
@@ -548,5 +558,9 @@ async fn api_import_cache_security_and_shutdown() {
     )
     .await;
     assert_eq!(settings["lastSnapshot"], id);
+    assert_eq!(
+        fs::read(data.join("rating-systems.json")).unwrap(),
+        saved_ratings
+    );
     second.shutdown().await.unwrap();
 }

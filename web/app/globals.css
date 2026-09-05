@@ -782,7 +782,73 @@ h2 {
 .settings-dialog {
   background: #192123;
   gap: 22px !important;
+  max-height: 90dvh;
+  overflow-y: auto;
 }
+.rating-settings-dialog {
+  width: min(1060px, calc(100vw - 32px)) !important;
+  max-width: none !important;
+}
+.general-settings,
+.rating-settings {
+  display: grid;
+  gap: 18px;
+  padding-top: 20px;
+}
+.rating-system-toolbar,
+.rating-editor-header,
+.rating-editor-actions,
+.rating-delete-actions {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.rating-field {
+  display: grid;
+  gap: 8px;
+  font-size: 14px;
+  flex: 1 1 220px;
+  min-width: 0;
+}
+.rating-field input,
+.rating-field button { font-size: 14px; }
+.weight-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(285px, 100%), 1fr));
+  gap: 16px;
+}
+.weight-group {
+  align-self: start;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  background: #171f21;
+}
+.weight-group h3 { font-size: 16px; font-weight: 600; margin-bottom: 12px; }
+.weight-row,
+.weight-table-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 80px 52px;
+  gap: 8px;
+  align-items: center;
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+.weight-row input { font-size: 14px; padding: 6px; text-align: right; }
+.weight-row span,
+.weight-table-head span:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
+.weight-table-head { color: var(--muted-foreground); margin-bottom: 10px; }
+.rating-editor-actions { align-items: center; border-top: 1px solid var(--border); padding-top: 16px; }
+.rating-editor-actions > span { margin-right: auto; }
+.rating-delete-actions { justify-content: end; }
+.settings-notice { color: var(--primary); font-size: 14px; }
+.custom-role-breakdown { overflow-x: auto; margin: 8px 0 16px; }
+.custom-role-breakdown table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.custom-role-breakdown caption { text-align: left; margin-bottom: 12px; color: var(--muted-foreground); }
+.custom-role-breakdown th,
+.custom-role-breakdown td { padding: 8px; border-bottom: 1px solid var(--border); text-align: right; font-variant-numeric: tabular-nums; }
+.custom-role-breakdown th:first-child { text-align: left; font-weight: 500; }
 .settings-label {
   font-size: 13px;
   display: grid;

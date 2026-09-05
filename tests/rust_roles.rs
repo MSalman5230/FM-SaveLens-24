@@ -189,6 +189,161 @@ fn snapshot() -> (tempfile::TempDir, PathBuf) {
 }
 
 #[test]
+fn custom_weights_match_sql_filtering_sorting_columns_and_pagination() {
+    use fm_savelens_backend::rating_systems::{RatingStore, BUILTIN};
+    let (_dir, path) = snapshot();
+    let writer = Connection::open(&path).unwrap();
+    writer.execute("UPDATE players SET attr_consistency=NULL, detail=json_remove(detail,'$.attributes.consistency') WHERE id=1", []).unwrap();
+    drop(writer);
+    let before = fs::read(&path).unwrap();
+    let db = storage::open_snapshot(&path).unwrap();
+    let mut roles = BUILTIN.roles.clone();
+    let mut custom = roles
+        .iter()
+        .find(|role| role.id == "af-attack")
+        .unwrap()
+        .clone();
+    custom.id = format!("custom-{}", uuid::Uuid::new_v4());
+    custom.name = "Two-footed consistent forward".into();
+    custom.weights = Some(
+        serde_json::from_value(
+            json!({"finishing":1.25,"leftFoot":0.5,"rightFoot":0.75,"consistency":2.5,"passing":0}),
+        )
+        .unwrap(),
+    );
+    let id = custom.id.clone();
+    roles.push(custom);
+    let system = RatingStore::default()
+        .create(&json!({"name":"Custom","roles":roles}))
+        .unwrap();
+    for direction in ["asc", "desc"] {
+        let query = format!("role={id}&roles={id},af-attack&sort=role:{id}&direction={direction}");
+        let all = storage::search_with_system(&db, &format!("{query}&limit=250"), &system).unwrap();
+        assert_eq!(all["systemId"], system.id);
+        assert_eq!(all["systemRevision"], 1);
+        let rows = all["players"].as_array().unwrap();
+        assert_eq!(rows.last().unwrap()["id"], 1);
+        assert!(rows.last().unwrap()["roleRating"].is_null());
+        let mut expected_scores = vec![];
+        for row in rows {
+            let detail =
+                storage::player_with_system(&db, row["id"].as_u64().unwrap() as u32, &system)
+                    .unwrap();
+            let rating = detail["roleRatings"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|rating| rating["roleId"] == id)
+                .unwrap();
+            assert_eq!(row["roleRating"], row["roleScores"][&id]);
+            if let Some(score) = row["roleRating"].as_f64() {
+                near(score, rating["score"].as_f64().unwrap());
+                expected_scores.push(score);
+            } else {
+                assert_eq!(rating["missingAttributes"], json!(["consistency"]));
+            }
+        }
+        for scores in expected_scores.windows(2) {
+            assert!(if direction == "asc" {
+                scores[0] <= scores[1]
+            } else {
+                scores[0] >= scores[1]
+            });
+        }
+        for (page, chunk) in rows.chunks(7).enumerate() {
+            let result = storage::search_with_system(
+                &db,
+                &format!("{query}&limit=7&page={}", page + 1),
+                &system,
+            )
+            .unwrap();
+            assert_eq!(result["players"].as_array().unwrap(), chunk);
+        }
+        let threshold = expected_scores[12];
+        let filtered = storage::search_with_system(
+            &db,
+            &format!("{query}&limit=250&roleMin={threshold}"),
+            &system,
+        )
+        .unwrap();
+        assert_eq!(
+            filtered["total"],
+            expected_scores
+                .iter()
+                .filter(|score| **score >= threshold)
+                .count()
+        );
+    }
+    drop(db);
+    assert_eq!(before, fs::read(path).unwrap());
+}
+
+#[tokio::test]
+async fn player_api_uses_active_identity_and_rejects_stale_system_requests() {
+    use fm_savelens_backend::{rating_systems::BUILTIN_ID, service};
+    let (_snapshot_dir, snapshot_path) = snapshot();
+    let data = tempfile::tempdir().unwrap();
+    let snapshot_id = "a".repeat(64);
+    fs::create_dir(data.path().join("snapshots")).unwrap();
+    fs::copy(
+        snapshot_path,
+        data.path()
+            .join("snapshots")
+            .join(format!("{snapshot_id}.sqlite")),
+    )
+    .unwrap();
+    let server = service::start(0, data.path()).await.unwrap();
+    let url = server.url();
+    let client = reqwest::Client::new();
+    let created: Value = client
+        .post(format!("{url}/api/rating-systems"))
+        .json(&json!({"name":"Active custom"}))
+        .send()
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    client
+        .put(format!("{url}/api/rating-systems/active"))
+        .json(&json!({"systemId":created["id"]}))
+        .send()
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap();
+    for suffix in ["", "/1"] {
+        let path = format!("{url}/api/snapshots/{snapshot_id}/players{suffix}");
+        let result: Value = client
+            .get(&path)
+            .send()
+            .await
+            .unwrap()
+            .error_for_status()
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(result["systemId"], created["id"]);
+        assert_eq!(result["systemRevision"], 1);
+        for query in [format!("systemId={BUILTIN_ID}"), "systemRevision=0".into()] {
+            assert_eq!(
+                client
+                    .get(format!("{path}?{query}"))
+                    .send()
+                    .await
+                    .unwrap()
+                    .status(),
+                409
+            );
+        }
+    }
+    server.shutdown().await.unwrap();
+}
+
+#[test]
 fn every_role_matches_sql_and_existing_snapshots_are_unchanged() {
     let (_dir, path) = snapshot();
     let before = fs::read(&path).unwrap();
