@@ -8,7 +8,7 @@ const [binary,...args]=process.argv.slice(2);
 if(!binary)throw new Error('Pass a server executable, AppImage --browser, or flatpak run command');
 const root=process.env.FMSAVELENS_SMOKE_ROOT || tmpdir();mkdirSync(root,{recursive:true});
 const data=mkdtempSync(join(root,'fm-savelens-smoke-'));
-const child=spawn(binary,[...args,'--port','0','--no-open'],{windowsHide:true,detached:process.platform!=='win32',env:{...process.env,FMSCOUT_DATA_DIR:data},stdio:['ignore','pipe','pipe']});
+const child=spawn(binary,[...args,'--port','0','--no-open'],{windowsHide:true,detached:process.platform!=='win32',env:{...process.env,FM_SAVELENS_24_DATA_DIR:data},stdio:['ignore','pipe','pipe']});
 let output='';child.stdout.on('data',b=>output+=b);child.stderr.on('data',b=>output+=b);
 let spawnError;child.on('error',e=>spawnError=e);
 try{

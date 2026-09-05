@@ -42,7 +42,7 @@ fn digest(s: &str) -> String {
     format!("{:x}", Sha256::digest(s.as_bytes()))
 }
 pub fn default_data_dir() -> PathBuf {
-    std::env::var_os("FMSCOUT_DATA_DIR")
+    std::env::var_os("FM_SAVELENS_24_DATA_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| {
             dirs::data_local_dir()
@@ -116,6 +116,7 @@ struct Inner {
     settings: Settings,
     jobs: BTreeMap<String, Job>,
     active: Option<Active>,
+    shutting_down: bool,
 }
 pub struct AppState {
     data: PathBuf,
@@ -151,7 +152,7 @@ impl AppState {
         } else {
             let legacy = std::env::var_os("LOCALAPPDATA")
                 .map(PathBuf::from)
-                .map(|p| p.join("FMScout24/settings.json"));
+                .map(|p| p.join("FM-SaveLens-24/settings.json"));
             let folder = legacy
                 .and_then(|p| fs::read(p).ok())
                 .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
@@ -168,6 +169,7 @@ impl AppState {
                 settings,
                 jobs: BTreeMap::new(),
                 active: None,
+                shutting_down: false,
             }),
             _lock: lock,
         });
@@ -243,6 +245,9 @@ impl AppState {
     }
     fn start_import(self: &Arc<Self>, save_id: &str) -> Result<Job> {
         let mut inner = self.inner.lock().unwrap();
+        if inner.shutting_down {
+            return Err(Error::new("SHUTTING_DOWN", "The app is shutting down."));
+        }
         if inner.active.is_some() {
             return Err(Error::query(
                 "Another save is already being read. Cancel it or wait for it to finish.",
@@ -380,6 +385,16 @@ impl AppState {
             wait_for(&active.done);
         }
     }
+    fn begin_shutdown(&self) -> Option<Completion> {
+        let mut inner = self.inner.lock().unwrap();
+        // Use the import/publication mutex so no late request can start work
+        // between capturing the active worker and stopping HTTP acceptance.
+        inner.shutting_down = true;
+        inner.active.as_ref().map(|active| {
+            active.cancel.cancel();
+            active.done.clone()
+        })
+    }
     fn api(
         self: &Arc<Self>,
         method: &str,
@@ -500,6 +515,7 @@ fn error_response(e: Error) -> Response {
     let status = match e.code.as_str() {
         "INVALID_QUERY" => 400,
         "NOT_FOUND" => 404,
+        "SHUTTING_DOWN" => 503,
         _ => 500,
     };
     json_response(status, json!({"error":e.message}))
@@ -510,21 +526,19 @@ async fn handle(State(state): State<HttpState>, req: Request<Body>) -> Response 
         .get("host")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
-    if ![
+    let allowed_hosts = [
         format!("127.0.0.1:{}", state.port),
         format!("localhost:{}", state.port),
-    ]
-    .contains(&host.to_string())
-    {
+    ];
+    if !allowed_hosts.iter().any(|allowed| allowed == host) {
         return json_response(403, json!({"error":"Invalid host."}));
     }
     if let Some(origin) = req.headers().get("origin") {
         let origin = origin.to_str().unwrap_or("");
-        if ![
-            format!("http://127.0.0.1:{}", state.port),
-            "http://127.0.0.1:5173".into(),
-        ]
-        .contains(&origin.to_string())
+        if origin != "http://127.0.0.1:5173"
+            && !allowed_hosts
+                .iter()
+                .any(|host| origin == format!("http://{host}"))
         {
             return json_response(
                 403,
@@ -628,11 +642,13 @@ impl RunningServer {
         format!("http://{}", self.address)
     }
     pub async fn shutdown(self) -> Result<()> {
+        let completion = self.app.begin_shutdown();
         self.shutdown.cancel();
-        let app = self.app.clone();
-        tokio::task::spawn_blocking(move || app.stop_import())
-            .await
-            .map_err(|e| Error::new("SHUTDOWN", e.to_string()))?;
+        if let Some(completion) = completion {
+            tokio::task::spawn_blocking(move || wait_for(&completion))
+                .await
+                .map_err(|e| Error::new("SHUTDOWN", e.to_string()))?;
+        }
         self.task
             .await
             .map_err(|e| Error::new("SHUTDOWN", e.to_string()))??;
@@ -662,10 +678,10 @@ pub async fn start(port: u16, data: &Path) -> Result<RunningServer> {
     })
 }
 pub async fn run_browser(args: impl Iterator<Item = String>) -> Result<()> {
-    let mut port = std::env::var("FMSCOUT_PORT")
+    let mut port = std::env::var("FM_SAVELENS_24_PORT")
         .unwrap_or_else(|_| "4242".into())
         .parse::<u16>()
-        .map_err(|_| Error::query("Invalid FMSCOUT_PORT."))?;
+        .map_err(|_| Error::query("Invalid FM_SAVELENS_24_PORT."))?;
     let mut no_open = false;
     let mut args = args.peekable();
     while let Some(arg) = args.next() {
@@ -684,7 +700,7 @@ pub async fn run_browser(args: impl Iterator<Item = String>) -> Result<()> {
                 return Ok(());
             }
             "--help" => {
-                println!("FM SaveLens 24 server [--port PORT] [--no-open]\nFMSCOUT_DATA_DIR overrides local storage. Stop with Ctrl+C.");
+                println!("FM SaveLens 24 server [--port PORT] [--no-open]\nFM_SAVELENS_24_DATA_DIR overrides local storage. Stop with Ctrl+C.");
                 return Ok(());
             }
             _ => return Err(Error::query(format!("Unknown option: {arg}"))),

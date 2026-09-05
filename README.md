@@ -25,7 +25,7 @@ Extract to a local disk. Microsoft does not support fixed runtimes on network/UN
 
 The installer creates application shortcuts and handles the WebView2 prerequisite; downloading the prerequisite can require Internet access. Initial builds are unsigned.
 
-For browser mode, run `Start-Browser.cmd` and stop its background server with `Stop-Browser.cmd`. The old `Start-FMScout.cmd` and `Stop-FMScout.cmd` names remain launcher aliases in the repository. The ZIP also contains `fm-savelens-24-server.exe`, which runs directly in a terminal.
+For browser mode, run `Start-Browser.cmd` and stop its background server with `Stop-Browser.cmd`. The `Start-FM-SaveLens-24.cmd` and `Stop-FM-SaveLens-24.cmd` launcher aliases are also available in the repository. The ZIP also contains `fm-savelens-24-server.exe`, which runs directly in a terminal.
 
 ### Linux AppImage
 
@@ -72,7 +72,7 @@ Standalone browser mode defaults to port 4242:
 fm-savelens-24-server --port 4242 --no-open
 ```
 
-Omit `--no-open` to open the browser automatically. `FMSCOUT_PORT` and `FMSCOUT_DATA_DIR` remain supported. Ctrl+C (or SIGTERM on Linux) gracefully stops the server. Only one process may write to a data directory at a time.
+Omit `--no-open` to open the browser automatically. `FM_SAVELENS_24_PORT` and `FM_SAVELENS_24_DATA_DIR` are supported. Ctrl+C (or SIGTERM on Linux) gracefully stops the server. Only one process may write to a data directory at a time.
 
 Imports run off the HTTP/UI thread, one at a time, with cooperative cancellation. Changed source files invalidate cache selections. Failed or cancelled imports never publish a partial snapshot.
 
@@ -86,7 +86,7 @@ Search preserves Unicode and supports unaccented queries. Filters include second
 | Linux | `$XDG_DATA_HOME/io.github.MSalman5230.FMSaveLens24`, normally `~/.local/share/io.github.MSalman5230.FMSaveLens24` |
 | Flatpak | `~/.var/app/io.github.MSalman5230.FMSaveLens24/data/io.github.MSalman5230.FMSaveLens24` |
 
-`FMSCOUT_DATA_DIR` overrides this location. On Windows, the existing `%LOCALAPPDATA%\FMScout24\settings.json` save-folder setting is migrated when no new settings exist. Old files are preserved. Snapshots are rebuilt under the distinct Rust parser version `fm24-rust-1`; historical TypeScript caches are not reused.
+`FM_SAVELENS_24_DATA_DIR` overrides this location. On Windows, the existing `%LOCALAPPDATA%\FM-SaveLens-24\settings.json` save-folder setting is migrated when no new settings exist. Old files are preserved. Snapshots are rebuilt under the distinct Rust parser version `fm24-rust-1`; historical TypeScript caches are not reused.
 
 ## Supported saves and validation
 
@@ -103,6 +103,7 @@ npm ci
 npm --prefix web ci
 npm run build:web
 npm test
+npm run test:web
 npm --prefix web run lint
 cargo fmt --all -- --check
 cargo clippy --locked --workspace --all-targets -- -D warnings
@@ -118,7 +119,9 @@ The root Cargo package contains the reusable library and standalone server. `src
 
 `npm test` runs portable synthetic Rust parser and API tests on either platform: compressed/plain and malformed archives, ownership, Unicode, attributes, queries, cancellation, source changes, cache reopening, and data-directory locking.
 
-For optional local reference checks, set `FMSCOUT_FIXTURE_DIR` to your private save directory and run `npm run test:reference` after building the Rust server. To compare every save's full deterministic parser result and verify before/after source hashes:
+`npm run test:web` runs the frontend focus-refresh regression tests with Node's built-in test runner, including save switches, overlapping requests, cancellation, and cleanup. Both platform CI jobs run these tests.
+
+For optional local reference checks, set `FM_SAVELENS_24_FIXTURE_DIR` to your private save directory and run `npm run test:reference` after building the Rust server. To compare every save's full deterministic parser result and verify before/after source hashes:
 
 ```sh
 cargo build --release --locked --example parse-save

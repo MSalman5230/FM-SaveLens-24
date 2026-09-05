@@ -9,6 +9,7 @@
   "scripts": {
     "start": "cargo run --locked -p fm-savelens-backend --bin fm-savelens-24-server -- --no-open",
     "test": "cargo test --locked -p fm-savelens-backend",
+    "test:web": "node --test tests/frontend/*.test.ts",
     "test:reference": "node --test tests/*.test.ts",
     "test:parity": "node scripts/parity.mjs",
     "build:web": "npm --prefix web run build",

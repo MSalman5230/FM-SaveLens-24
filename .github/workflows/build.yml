@@ -32,6 +32,7 @@ jobs:
       - run: npm ci
       - run: npm --prefix web ci
       - run: npm --prefix web run lint
+      - run: npm run test:web
       - run: npm run build:web
       - name: Verify versions
         env:
@@ -79,6 +80,7 @@ jobs:
       - run: npm ci
       - run: npm --prefix web ci
       - run: npm --prefix web run lint
+      - run: npm run test:web
       - run: npm run build:web
       - name: Verify versions
         env:

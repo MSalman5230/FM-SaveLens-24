@@ -4,8 +4,8 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { parseSave } from "../server/parser/index.ts";
 import { columns, reference } from "./salford-reference.ts";
-const file = join(process.env.FMSCOUT_FIXTURE_DIR || "tests/fixtures/private", "Salford - Masood.fm");
-const editedFile = join(process.env.FMSCOUT_FIXTURE_DIR || "tests/fixtures/private", "Universal Watcher - Update.fm");
+const file = join(process.env.FM_SAVELENS_24_FIXTURE_DIR || "tests/fixtures/private", "Salford - Masood.fm");
+const editedFile = join(process.env.FM_SAVELENS_24_FIXTURE_DIR || "tests/fixtures/private", "Universal Watcher - Update.fm");
 test('Edited databases preserve single names and resolve every detected player block',{skip:!existsSync(editedFile)},()=>{
  const save=parseSave(editedFile);
  for(const name of ['Davinchi','Denner','Belinho','Tiago'])assert.ok(save.players.some(p=>p.name===name),`Missing single-name player ${name}`);

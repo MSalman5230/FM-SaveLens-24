@@ -3,10 +3,10 @@ $ErrorActionPreference = 'Stop'
 $executablePath = [IO.Path]::GetFullPath($Executable)
 $runtimePath = Join-Path (Split-Path -Parent $executablePath) 'WebView2Runtime'
 $testData = Join-Path ([IO.Path]::GetTempPath()) ('fm-savelens-desktop-' + [guid]::NewGuid())
-$previousData = $env:FMSCOUT_DATA_DIR
+$previousData = $env:FM_SAVELENS_24_DATA_DIR
 $desktopProcess = $null
 try {
-    $env:FMSCOUT_DATA_DIR = $testData
+    $env:FM_SAVELENS_24_DATA_DIR = $testData
     $desktopProcess = Start-Process -FilePath $executablePath -WindowStyle Hidden -PassThru
     $ready = $false
     for ($attempt = 0; $attempt -lt 120; $attempt++) {
@@ -27,7 +27,7 @@ try {
     if (-not $ready) { throw 'Bundled WebView2 renderer or owned Rust service did not start' }
     Write-Host "Packaged desktop $($health.version): bundled WebView2 renderer and owned loopback service passed."
 } finally {
-    $env:FMSCOUT_DATA_DIR = $previousData
+    $env:FM_SAVELENS_24_DATA_DIR = $previousData
     if ($desktopProcess -and -not $desktopProcess.HasExited) {
         Stop-Process -Id $desktopProcess.Id
         $desktopProcess.WaitForExit(10000) | Out-Null
