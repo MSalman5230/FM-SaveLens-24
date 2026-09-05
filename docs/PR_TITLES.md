@@ -7,18 +7,15 @@ PR titles targeting `master` must use `type(scope): description`. The scope is o
 - `feat(api)!: replace the snapshot format` triggers a major release.
 - `docs: clarify installation` passes validation without starting a release.
 
-Supported types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`, and `deps`. Scopes contain letters, digits, `.`, `_`, `/`, or `-`. Descriptions must be nonempty and on one line.
+Supported types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`, and `deps`. Types must be lowercase. Scopes contain letters, digits, `.`, `_`, `/`, or `-`. Use exactly one space after the colon. Descriptions must be nonempty and on one line, with no leading or trailing whitespace.
 
-## Automatic corrections
+## Title validation
 
-The **PR title** workflow checks new PRs, title edits, reopened PRs, new commits, and PRs marked ready for review. It:
+The **PR title** workflow checks new PRs, title edits, reopened PRs, new commits, and PRs marked ready for review. Invalid titles fail the check with format guidance in the workflow logs. Edit the title on GitHub to rerun the check.
 
-- Normalizes explicit prefixes: `FIX:repair timestamps` becomes `fix: repair timestamps`.
-- Adds a missing prefix from a typed branch (`fix/timestamps`, `fix-timestamps`, or `codex/fix-timestamps`) or a complete set of commits with one consistent conventional type. Branch and commit types must not conflict.
-- Preserves explicit breaking-change markers when inferring a title.
-- Fails with instructions when the type is ambiguous. For example, `Add tests` alone does not establish whether the change is a feature or a test change. Unknown changes are never assigned `chore:` by default.
+For example, `FIX:repair timestamps` fails; enter `fix: repair timestamps` manually. Choose the type and any breaking-change marker explicitly. The workflow does not infer them from branches or commit messages, suggest a replacement title, or automatically rename PRs.
 
-The workflow uses the built-in GitHub token to rename PRs, including fork PRs, and runs only trusted code from the default branch. If GitHub denies the rename, the check fails with the proposed title for a manual correction. A successful rename is validated in the same run. No PR comments are posted.
+The workflow reads PR metadata, including fork PRs, and uses the built-in GitHub token to publish a **PR title** commit status. It runs only trusted code from the default branch. PR metadata is never changed and no PR comments are posted.
 
 ## Activation and merging
 

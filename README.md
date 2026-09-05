@@ -39,7 +39,7 @@ After launching, finish saving in Football Manager, set your save folder in **Se
 
 Open an issue for bugs or ideas, or fork the repository and submit a pull request. Keep changes focused, use Conventional Commits (`fix:`, `feat:`), and never commit private save files.
 
-Use a Conventional Commit PR title, such as `fix: preserve fractional snapshot timestamps` or `feat(ui): add app branding`. The **PR title** check automatically corrects titles when the type is clear. **Squash and merge using the validated title as the commit subject** so Release Please can detect the change. See [PR title rules and setup](docs/PR_TITLES.md).
+Use a Conventional Commit PR title, such as `fix: preserve fractional snapshot timestamps` or `feat(ui): add app branding`. The **PR title** check fails invalid titles with format guidance; edit the title manually to correct it. **Squash and merge using the validated title as the commit subject** so Release Please can detect the change. See [PR title rules and setup](docs/PR_TITLES.md).
 
 To develop on Windows or Linux, install Node.js **24.14+**, Rust via rustup (the toolchain is pinned in `rust-toolchain.toml`), and the [Tauri build prerequisites](https://v2.tauri.app/start/prerequisites/). Then:
 
