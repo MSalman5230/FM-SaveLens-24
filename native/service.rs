@@ -31,6 +31,17 @@ use tokio_util::sync::CancellationToken;
 #[folder = "web/dist/client/"]
 struct Assets;
 
+/// Keep only a successful recovery's backup. The operation owns the file so
+/// its handles are closed before best-effort cleanup, including on Windows.
+fn with_recovery_backup<T>(path: &Path, operation: impl FnOnce(File) -> Result<T>) -> Result<T> {
+    let file = OpenOptions::new().write(true).create_new(true).open(path)?;
+    let result = operation(file);
+    if result.is_err() {
+        let _ = fs::remove_file(path);
+    }
+    result
+}
+
 pub fn mtime(stat: &Metadata) -> Result<f64> {
     Ok(stat
         .modified()?
@@ -271,16 +282,14 @@ impl AppState {
             |next| Ok(next.list()),
             |next| {
                 let mut original = File::open(self.data.join("rating-systems.json"))?;
-                let mut copy = OpenOptions::new()
-                    .write(true)
-                    .create_new(true)
-                    .open(self.data.join(&backup))?;
-                std::io::copy(&mut original, &mut copy)?;
-                copy.sync_all()?;
-                // Windows replacement requires releasing the source handle first.
-                drop(original);
-                drop(copy);
-                persist(next)
+                with_recovery_backup(&self.data.join(&backup), move |mut copy| {
+                    std::io::copy(&mut original, &mut copy)?;
+                    copy.sync_all()?;
+                    // Windows replacement requires releasing the source handle first.
+                    drop(original);
+                    drop(copy);
+                    persist(next)
+                })
             },
         )?;
         library["backupFilename"] = json!(backup);

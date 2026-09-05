@@ -101,14 +101,20 @@ fn failed_recovery_persistence_keeps_the_original_and_recovery_state() {
     let original = b"invalid rating file";
     fs::write(dir.path().join("rating-systems.json"), original).unwrap();
     let app = AppState::open(dir.path()).unwrap();
-    assert!(app
-        .recover_ratings(|_| Err(Error::new("IO", "Write failed")))
-        .is_err());
-    assert!(app.inner.lock().unwrap().rating_recovery.is_some());
-    assert_eq!(
-        fs::read(dir.path().join("rating-systems.json")).unwrap(),
-        original
-    );
+    let previous = dir.path().join("rating-systems.backup-previous.json");
+    fs::write(&previous, b"previous successful backup").unwrap();
+    for _ in 0..3 {
+        let error = app
+            .recover_ratings(|_| Err(Error::new("IO", "Write failed")))
+            .unwrap_err();
+        assert_eq!(error.code, "IO");
+        assert_eq!(error.message, "Write failed");
+        assert!(app.inner.lock().unwrap().rating_recovery.is_some());
+        assert_eq!(
+            fs::read(dir.path().join("rating-systems.json")).unwrap(),
+            original
+        );
+    }
     let backups: Vec<_> = fs::read_dir(dir.path())
         .unwrap()
         .map(|entry| entry.unwrap().path())
@@ -119,8 +125,62 @@ fn failed_recovery_persistence_keeps_the_original_and_recovery_state() {
                 .starts_with("rating-systems.backup-")
         })
         .collect();
-    assert_eq!(backups.len(), 1);
-    assert_eq!(fs::read(&backups[0]).unwrap(), original);
+    assert_eq!(backups, std::slice::from_ref(&previous));
+    assert_eq!(fs::read(&previous).unwrap(), b"previous successful backup");
+    let recovered = app.reset_ratings().unwrap();
+    assert_eq!(
+        fs::read(
+            dir.path()
+                .join(recovered["backupFilename"].as_str().unwrap())
+        )
+        .unwrap(),
+        original
+    );
+    assert!(app.inner.lock().unwrap().rating_recovery.is_none());
+    assert_eq!(fs::read(&previous).unwrap(), b"previous successful backup");
+}
+
+#[test]
+fn partial_recovery_backups_are_removed_after_copy_or_flush_errors() {
+    let dir = tempfile::tempdir().unwrap();
+    for partial in [false, true] {
+        let path = dir.path().join("rating-systems.backup-test.json");
+        let error = with_recovery_backup(&path, |mut file| -> Result<()> {
+            if partial {
+                file.write_all(b"partial copy")?;
+            }
+            Err(Error::new("IO", "Copy or flush failed"))
+        })
+        .unwrap_err();
+        assert_eq!(error.message, "Copy or flush failed");
+        assert!(!path.exists());
+    }
+}
+
+#[test]
+fn recovery_cleanup_cannot_remove_an_existing_backup_or_mask_the_original_error() {
+    let dir = tempfile::tempdir().unwrap();
+    let existing = dir.path().join("existing.json");
+    fs::write(&existing, b"keep me").unwrap();
+    assert!(with_recovery_backup(&existing, |_| -> Result<()> {
+        panic!("An existing backup must not be opened for writing")
+    })
+    .is_err());
+    assert_eq!(fs::read(&existing).unwrap(), b"keep me");
+
+    let path = dir.path().join("cleanup-failure.json");
+    let error = with_recovery_backup(&path, |file| -> Result<()> {
+        drop(file);
+        // A directory makes remove_file fail deterministically on all platforms.
+        fs::remove_file(&path)?;
+        fs::create_dir(&path)?;
+        Err(Error::new("IO", "Original failure"))
+    })
+    .unwrap_err();
+    assert_eq!(error.code, "IO");
+    assert_eq!(error.message, "Original failure");
+    assert!(path.is_dir());
+    assert_eq!(fs::read(&existing).unwrap(), b"keep me");
 }
 
 #[test]
