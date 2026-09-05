@@ -12,6 +12,7 @@ const catalog = JSON.parse(readFileSync(new URL('../../native/roles.json', impor
 
 test('best role formatting uses one decimal and a short role code without duty', () => {
   for (const [id, code] of [
+    ['gk-defend', 'G'],
     ['af-attack', 'AF'], ['ap-support', 'AP'], ['cd-defend', 'CD'], ['anchor-defend', 'A'], ['f9-support', 'F9'],
     ['wtf-support', 'WT'], ['wtf-attack', 'WT'], ['reg-support', 'RGA'],
     ['sv-support', 'VOL'], ['sv-attack', 'VOL'], ['eng-support', 'EG'],

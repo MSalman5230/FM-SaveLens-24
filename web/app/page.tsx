@@ -52,7 +52,7 @@ import { roleLabel, selectRole } from "@/lib/role-ratings";
 import { PlayerColumnChooser } from "@/components/player-column-chooser";
 import { PlayerListTable } from "@/components/player-list-table";
 import { PositionFilter, PositionMatching } from "@/components/position-filter";
-import { activeFilterCount, advancedFilterCount, defaultPositionFilters, selectedPositions, selectPositions } from "@/lib/position-filter";
+import { activeFilterCount, advancedFilterCount, defaultPositionFilters, positionMatchOf, selectedPositions, selectPositions } from "@/lib/position-filter";
 import type { PositionMatch } from "@/lib/position-filter";
 import { columnStorageKey, legacyColumnStorageKey, defaultColumns, normalizeColumns, playerColumns, restoreColumnPreferences, resolveColumnSort, visibleSort } from "@/lib/player-columns";
 import { currentValue, requestSnapshot, resourceKey } from "@/lib/snapshot-request";
@@ -430,8 +430,6 @@ export default function Home() {
   function saveColumns(ids: string[]) {
     const next = normalizeColumns(ids, availableColumns);
     setColumnIds(next);
-    try { window.localStorage.setItem(columnStorageKey, JSON.stringify(next)); }
-    catch { /* Column editing remains available without device storage. */ }
     return next;
   }
   function changeColumns(ids: string[]) {
@@ -797,7 +795,7 @@ export default function Home() {
               />
             </div>
             <PositionFilter positions={positions} value={selectedPositions(filters.position)}
-              match={filters.positionMatch === 'or' ? 'or' : 'and'} disabled={!snapshot}
+              match={positionMatchOf(filters.positionMatch)} disabled={!snapshot}
               onChange={changePositions} />
             <div className="filter-field">
               <label htmlFor="role-and-duty">Role and duty</label>
@@ -851,7 +849,7 @@ export default function Home() {
                 </div>
               ))}
               <PositionMatching value={selectedPositions(filters.position)}
-                match={filters.positionMatch === 'or' ? 'or' : 'and'} disabled={!snapshot}
+                match={positionMatchOf(filters.positionMatch)} disabled={!snapshot}
                 onChange={changePositions} />
               <div className="attribute-filter">
                 <div className="section-heading">MINIMUM ATTRIBUTES</div>

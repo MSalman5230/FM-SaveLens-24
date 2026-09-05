@@ -1,8 +1,15 @@
-import type { Attribute, RatingIdentity, RatingSystem, RoleCatalog, RoleDefinition } from './scout-api.ts';
+import type { Attribute, RatingIdentity, RatingSystem, RatingSystems, RoleCatalog, RoleDefinition } from './scout-api.ts';
 import { normalizeColumns, playerColumns, resolveColumnSort } from './player-columns.ts';
 import { playerQuery } from './role-ratings.ts';
 
 export const builtinSystemId = 'role-highlighted-rating';
+export function ratingCapacity(library: RatingSystems | null, system: RatingSystem | null) {
+  const writable = !!library && !library.recovery;
+  return {
+    canAddSystem: writable && library.systems.filter(item => !item.builtIn).length < library.limits.maxCustomSystems,
+    canAddRole: writable && !!system && !system.builtIn && system.roles.length < library.limits.maxRolesPerSystem,
+  };
+}
 export const hybridSystemId = 'fm-arena-hybrid-rating';
 export const hybridEvidenceUrl = 'https://fm-arena.com/thread/14009-attribute-testing-football-manager-24/';
 export const ratingModel = (systemId: string) => systemId === builtinSystemId ? 'highlighted' : systemId === hybridSystemId ? 'hybrid' : 'custom';

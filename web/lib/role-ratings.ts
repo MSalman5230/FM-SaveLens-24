@@ -8,6 +8,7 @@ export const formatRoleScore = (score: number | null | undefined) =>
 
 // Internal role aliases can differ from the abbreviations displayed in FM24.
 const roleAbbreviations: Record<string, string> = {
+  gk: 'G',
   anchor: 'A',
   wtf: 'WT',
   reg: 'RGA',

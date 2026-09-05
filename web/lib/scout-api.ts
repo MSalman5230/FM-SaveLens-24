@@ -93,6 +93,9 @@ export type RatingSystem = {
   roles: RoleDefinition[];
 };
 export type RatingSystems = {
+  limits: { maxCustomSystems: number; maxRolesPerSystem: number };
+  recovery?: { message: string };
+  backupFilename?: string;
   activeSystemId: string;
   systems: (Omit<RatingSystem, 'roles'> & { roleCount: number })[];
   catalog: RoleCatalog;

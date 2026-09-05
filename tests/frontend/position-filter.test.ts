@@ -1,9 +1,14 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { setImmediate } from 'node:timers/promises';
-import { activeFilterCount, advancedFilterCount, defaultPositionFilters, selectedPositions, selectPositions } from '../../web/lib/position-filter.ts';
+import { activeFilterCount, advancedFilterCount, defaultPositionFilters, positionMatchOf, selectedPositions, selectPositions } from '../../web/lib/position-filter.ts';
 import { playerQuery } from '../../web/lib/role-ratings.ts';
 import { currentValue, resourceKey, requestSnapshot } from '../../web/lib/snapshot-request.ts';
+
+test('position matching normalizes to AND unless explicitly OR', () => {
+  assert.equal(positionMatchOf('or'), 'or');
+  for (const value of [undefined, '', 'and', 'OR', 'invalid']) assert.equal(positionMatchOf(value), 'and');
+});
 
 test('advanced filter count includes active bounds, attributes, and a nondefault multi-position rule', () => {
   assert.equal(advancedFilterCount({ ...defaultPositionFilters, q: 'Ali', club: '1', nation: '12', role: 'af-attack' }), 0);

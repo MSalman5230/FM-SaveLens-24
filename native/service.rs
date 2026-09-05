@@ -116,13 +116,24 @@ struct Active {
 struct Inner {
     settings: Settings,
     ratings: RatingStore,
+    rating_recovery: Option<String>,
     jobs: BTreeMap<String, Job>,
     active: Option<Active>,
     shutting_down: bool,
 }
+impl Inner {
+    fn rating_library(&self) -> Value {
+        let mut library = self.ratings.list();
+        if let Some(message) = &self.rating_recovery {
+            library["recovery"] = json!({"message": message});
+        }
+        library
+    }
+}
 pub struct AppState {
     data: PathBuf,
     inner: Mutex<Inner>,
+    rating_writer: Mutex<()>,
     searches: Mutex<Option<SearchContext>>,
     #[cfg(test)]
     search_preparations: std::sync::atomic::AtomicUsize,
@@ -134,6 +145,8 @@ struct SearchContext {
     revision: u64,
     session: Arc<Mutex<Option<storage::SearchSession>>>,
 }
+#[cfg(test)]
+mod rating_tests;
 #[cfg(test)]
 mod search_tests;
 
@@ -177,15 +190,20 @@ impl AppState {
                 last_snapshot: None,
             }
         };
-        let ratings = RatingStore::load(&data)?;
+        let (ratings, rating_recovery) = match RatingStore::load(&data) {
+            Ok(ratings) => (ratings, None),
+            Err(error) => (RatingStore::default(), Some(error.to_string())),
+        };
         let app = Arc::new(Self {
             data,
+            rating_writer: Mutex::new(()),
             searches: Mutex::new(None),
             #[cfg(test)]
             search_preparations: std::sync::atomic::AtomicUsize::new(0),
             inner: Mutex::new(Inner {
                 settings,
                 ratings,
+                rating_recovery,
                 jobs: BTreeMap::new(),
                 active: None,
                 shutting_down: false,
@@ -202,6 +220,71 @@ impl AppState {
         file.persist(self.data.join("settings.json"))
             .map_err(|e| Error::from(e.error))?;
         Ok(())
+    }
+    /// Serialize rating writers without blocking workspace reads during disk I/O.
+    /// Lock order is rating_writer, then inner, then searches; publication follows persistence.
+    fn commit_ratings<T>(
+        &self,
+        recovering: bool,
+        change: impl FnOnce(&mut RatingStore) -> Result<T>,
+        persist: impl FnOnce(&RatingStore) -> Result<()>,
+    ) -> Result<T> {
+        let _writer = self.rating_writer.lock().unwrap();
+        let mut next = {
+            let inner = self.inner.lock().unwrap();
+            if recovering {
+                if inner.rating_recovery.is_none() {
+                    return Err(Error::new(
+                        "CONFLICT",
+                        "Rating recovery is no longer required. Reload Settings.",
+                    ));
+                }
+                RatingStore::default()
+            } else {
+                if inner.rating_recovery.is_some() {
+                    return Err(Error::new("RECOVERY_REQUIRED", "Reset rating systems in Settings, or repair rating-systems.json and restart the app."));
+                }
+                inner.ratings.clone()
+            }
+        };
+        let result = change(&mut next)?;
+        persist(&next)?;
+        let mut inner = self.inner.lock().unwrap();
+        inner.ratings = next;
+        inner.rating_recovery = None;
+        self.retain_rating_cache(inner.ratings.active());
+        Ok(result)
+    }
+
+    fn change_ratings<T>(&self, change: impl FnOnce(&mut RatingStore) -> Result<T>) -> Result<T> {
+        self.commit_ratings(false, change, |next| next.persist(&self.data))
+    }
+
+    fn reset_ratings(&self) -> Result<Value> {
+        self.recover_ratings(|next| next.persist(&self.data))
+    }
+
+    fn recover_ratings(&self, persist: impl FnOnce(&RatingStore) -> Result<()>) -> Result<Value> {
+        let backup = format!("rating-systems.backup-{}.json", uuid::Uuid::new_v4());
+        let mut library = self.commit_ratings(
+            true,
+            |next| Ok(next.list()),
+            |next| {
+                let mut original = File::open(self.data.join("rating-systems.json"))?;
+                let mut copy = OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .open(self.data.join(&backup))?;
+                std::io::copy(&mut original, &mut copy)?;
+                copy.sync_all()?;
+                // Windows replacement requires releasing the source handle first.
+                drop(original);
+                drop(copy);
+                persist(next)
+            },
+        )?;
+        library["backupFilename"] = json!(backup);
+        Ok(library)
     }
     fn search_players(
         &self,
@@ -472,23 +555,20 @@ impl AppState {
             ("GET", "/api/roles") => {
                 Ok((200, self.inner.lock().unwrap().ratings.active().catalog()))
             }
-            ("GET", "/api/rating-systems") => Ok((200, self.inner.lock().unwrap().ratings.list())),
+            ("GET", "/api/rating-systems") => {
+                Ok((200, self.inner.lock().unwrap().rating_library()))
+            }
+            ("POST", "/api/rating-systems/reset") => Ok((200, self.reset_ratings()?)),
             ("POST", "/api/rating-systems") => {
-                let mut inner = self.inner.lock().unwrap();
-                let mut next = inner.ratings.clone();
-                let system = next.create(&body)?;
-                next.persist(&self.data)?;
-                inner.ratings = next;
+                let system = self.change_ratings(|next| next.create(&body))?;
                 Ok((201, json!(system)))
             }
             ("PUT", "/api/rating-systems/active") => {
-                let mut inner = self.inner.lock().unwrap();
-                let mut next = inner.ratings.clone();
-                next.activate(body["systemId"].as_str().unwrap_or(""))?;
-                next.persist(&self.data)?;
-                inner.ratings = next;
-                self.retain_rating_cache(inner.ratings.active());
-                Ok((200, inner.ratings.list()))
+                let library = self.change_ratings(|next| {
+                    next.activate(body["systemId"].as_str().unwrap_or(""))?;
+                    Ok(next.list())
+                })?;
+                Ok((200, library))
             }
             ("GET", "/api/settings") => {
                 let inner = self.inner.lock().unwrap();
@@ -531,22 +611,18 @@ impl AppState {
             _ => {
                 let parts: Vec<_> = path.trim_start_matches('/').split('/').collect();
                 if parts.len() == 3 && parts[1] == "rating-systems" {
-                    let mut inner = self.inner.lock().unwrap();
                     if method == "GET" {
+                        let inner = self.inner.lock().unwrap();
                         return Ok((200, json!(inner.ratings.find(parts[2])?)));
                     }
-                    let mut next = inner.ratings.clone();
-                    let result = match method {
-                        "PUT" => json!(next.update(parts[2], &body)?),
+                    let result = self.change_ratings(|next| match method {
+                        "PUT" => Ok(json!(next.update(parts[2], &body)?)),
                         "DELETE" => {
                             next.delete(parts[2])?;
-                            next.list()
+                            Ok(next.list())
                         }
-                        _ => return Err(Error::new("NOT_FOUND", "Not found.")),
-                    };
-                    next.persist(&self.data)?;
-                    inner.ratings = next;
-                    self.retain_rating_cache(inner.ratings.active());
+                        _ => Err(Error::new("NOT_FOUND", "Not found.")),
+                    })?;
                     return Ok((200, result));
                 }
                 if parts.len() == 3 && parts[1] == "imports" {
@@ -570,6 +646,17 @@ impl AppState {
                     && (parts.len() == 3 || parts[3] == "players")
                 {
                     let db = storage::open_snapshot(&self.db_path(parts[2])?)?;
+                    if parts.len() == 3 {
+                        let mut context = self.searches.lock().unwrap();
+                        if context
+                            .as_ref()
+                            .is_some_and(|context| context.snapshot != parts[2])
+                        {
+                            context.take();
+                        }
+                        drop(context);
+                        return Ok((200, storage::metadata(&db)?));
+                    }
                     // One immutable definition per request, including SQL queries
                     // and response identity. Never hold the workspace lock during SQL.
                     let system = self.inner.lock().unwrap().ratings.active().clone();
@@ -587,16 +674,6 @@ impl AppState {
                         }
                     }
                     let result = match parts.len() {
-                        3 => {
-                            let mut context = self.searches.lock().unwrap();
-                            if context
-                                .as_ref()
-                                .is_some_and(|context| context.snapshot != parts[2])
-                            {
-                                context.take();
-                            }
-                            storage::metadata(&db)?
-                        }
                         4 => self.search_players(parts[2], query, &system)?,
                         _ => storage::player_with_system(
                             &db,
@@ -642,12 +719,16 @@ fn json_response(status: u16, value: Value) -> Response {
 fn error_response(e: Error) -> Response {
     let status = match e.code.as_str() {
         "INVALID_QUERY" => 400,
-        "CONFLICT" => 409,
+        "CONFLICT" | "RECOVERY_REQUIRED" => 409,
         "NOT_FOUND" => 404,
         "SHUTTING_DOWN" => 503,
         _ => 500,
     };
-    json_response(status, json!({"error":e.message}))
+    let mut body = json!({"error":e.message});
+    if e.code == "RECOVERY_REQUIRED" {
+        body["code"] = json!(e.code);
+    }
+    json_response(status, body)
 }
 async fn handle(State(state): State<HttpState>, req: Request<Body>) -> Response {
     let host = req

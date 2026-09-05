@@ -474,6 +474,8 @@ async fn api_import_cache_security_and_shutdown() {
     assert_eq!(meta["stale"], false);
     let roles = value(client.get(format!("{url}/api/roles")).send().await.unwrap()).await;
     assert_eq!(roles["roles"].as_array().unwrap().len(), 85);
+    assert_eq!(roles["systemId"], "fm-arena-hybrid-rating");
+    assert_eq!(roles["modelVersion"], "fm-arena-hybrid-v1");
     assert_eq!(
         roles["modelVersion"],
         fm_savelens_backend::hybrid::MODEL_VERSION

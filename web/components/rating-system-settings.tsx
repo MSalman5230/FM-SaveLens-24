@@ -8,7 +8,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Combobox, ComboboxInput, ComboboxContent, ComboboxList, ComboboxItem, ComboboxEmpty } from '@/components/ui/combobox';
 import { api, ApiError, type Attribute, type RatingSystem, type RatingSystems, type RoleCatalog, type RoleDefinition } from '@/lib/scout-api';
-import { editRole, hybridEvidenceUrl, hybridSystemId, parseWeights, ratingModelNote, ratingSystemLabel, roleWeights, weightAttributes, weightDraft, weightGroup, weightGroups } from '@/lib/rating-systems';
+import { editRole, hybridEvidenceUrl, hybridSystemId, parseWeights, ratingCapacity, ratingModelNote, ratingSystemLabel, roleWeights, weightAttributes, weightDraft, weightGroup, weightGroups } from '@/lib/rating-systems';
 import { roleLabel } from '@/lib/role-ratings';
 import { watchRatingSettingsFocus, type RatingConflict, type RatingSettingsRefresh } from '@/lib/rating-settings-refresh';
 
@@ -25,6 +25,7 @@ export function RatingSystemSettings({ open, onOpenChange, attributes, onCatalog
 }) {
   const [tab, setTab] = useState('general');
   const [library, setLibrary] = useState<RatingSystems | null>(null);
+  const [resetOpen, setResetOpen] = useState(false);
   const [system, setSystem] = useState<RatingSystem | null>(null);
   const [roleId, setRoleId] = useState('');
   const [systemName, setSystemName] = useState('');
@@ -34,6 +35,8 @@ export function RatingSystemSettings({ open, onOpenChange, attributes, onCatalog
   const [loading, setLoading] = useState(false);
   const [completedActions, setCompletedActions] = useState(0);
   const busy = working || loading;
+  const readOnly = busy || !!library?.recovery;
+  const { canAddSystem, canAddRole } = ratingCapacity(library, system);
   const refreshRef = useRef<ReturnType<typeof watchRatingSettingsFocus> | null>(null);
   const [conflict, setConflict] = useState<RatingConflict>(null);
   const [error, setError] = useState('');
@@ -70,7 +73,7 @@ export function RatingSystemSettings({ open, onOpenChange, attributes, onCatalog
   }
 
   // Keep the source fixed while a copy name or deletion confirmation is open.
-  const getEditor = useEffectEvent(() => ({ system, dirty: dirty || naming !== null || deletion !== null }));
+  const getEditor = useEffectEvent(() => ({ system, dirty: dirty || naming !== null || deletion !== null || resetOpen }));
   const applyRefresh = useEffectEvent((next: RatingSettingsRefresh) => {
     setLibrary(next.library); onCatalog(next.library.catalog);
     if (next.system) selectSystem(next.system, roleId);
@@ -126,7 +129,7 @@ export function RatingSystemSettings({ open, onOpenChange, attributes, onCatalog
     setNotice('Changes saved.');
   }
   async function save() {
-    if (!system || system.builtIn || conflict) return false;
+    if (!system || system.builtIn || conflict || readOnly) return false;
     return perform(async () => {
       await persist(editRole(system, roleId, roleName, parseWeights(weights, attributes)));
     });
@@ -157,7 +160,7 @@ export function RatingSystemSettings({ open, onOpenChange, attributes, onCatalog
     if (dirty) setPending(intent); else execute(intent);
   }
   async function saveNamed() {
-    if (!system || !naming || conflict && naming !== 'system') return;
+    if (!system || !naming || readOnly || (naming === 'role' ? !canAddRole : !canAddSystem) || conflict && naming !== 'system') return;
     await perform(async () => {
       const name = newName.trim();
       if (!name || Array.from(name).length > 100) throw new Error('Names must contain 1–100 characters.');
@@ -177,7 +180,7 @@ export function RatingSystemSettings({ open, onOpenChange, attributes, onCatalog
     });
   }
   async function deleteConfirmed() {
-    if (!system || conflict) return;
+    if (!system || conflict || readOnly) return;
     await perform(async () => {
       if (deletion === 'role') {
         await persist(system.roles.filter(role => role.id !== roleId), system.roles[0].id);
@@ -196,6 +199,12 @@ export function RatingSystemSettings({ open, onOpenChange, attributes, onCatalog
       <DialogContent className={`settings-dialog ${tab === 'ratings' ? 'rating-settings-dialog' : ''}`}>
         <DialogHeader><DialogTitle>Workspace settings</DialogTitle>
           <DialogDescription>Manage your save folder and weighted role ratings.</DialogDescription></DialogHeader>
+        {library?.recovery && <div role="alert">
+          <p>Saved rating systems could not be loaded. Browsing uses FM-Arena Hybrid Rating. Your original file is unchanged.</p>
+          <p>{library.recovery.message}</p>
+          <p>Reset to back up the file and start a new library, or repair rating-systems.json in the workspace data directory and restart.</p>
+          <Button variant="outline" disabled={busy} onClick={() => { setError(''); setResetOpen(true); }}>Reset rating systems</Button>
+        </div>}
         <Tabs value={tab} onValueChange={value => leave({ kind: 'tab', value: String(value) })}>
           <TabsList><TabsTrigger value="general">General</TabsTrigger><TabsTrigger value="ratings">Rating systems</TabsTrigger></TabsList>
           <TabsContent value="general" className="general-settings">{children}</TabsContent>
@@ -209,12 +218,13 @@ export function RatingSystemSettings({ open, onOpenChange, attributes, onCatalog
                     <SelectItem key={item.value} value={item.value}>{item.label}{item.value === library?.activeSystemId ? ' · Active' : ''}</SelectItem>)}</SelectContent>
                 </Select>
               </label>
-              <Button variant="outline" disabled={busy || !system || !!conflict} onClick={() => leave({ kind: 'new' })}>New system</Button>
-              <Button disabled={busy || !system || dirty || !!conflict || system.id === library?.activeSystemId} onClick={() => void perform(async () => {
+              <Button variant="outline" disabled={readOnly || !system || !!conflict || !canAddSystem} onClick={() => leave({ kind: 'new' })}>New system</Button>
+              <Button disabled={readOnly || !system || dirty || !!conflict || system.id === library?.activeSystemId} onClick={() => void perform(async () => {
                 const next = await api<RatingSystems>('/rating-systems/active', { method: 'PUT', body: JSON.stringify({ systemId: system!.id }) });
                 setLibrary(next); onCatalog(next.catalog); setNotice(`${system!.name} is now active.`);
               })}>{system?.id === library?.activeSystemId ? 'Active system' : 'Use system'}</Button>
             </div>
+            {library && <p className="muted">{library.systems.filter(item => !item.builtIn).length} of {library.limits.maxCustomSystems} custom systems · up to {library.limits.maxRolesPerSystem} profiles per system, including the 85 original profiles.</p>}
             {conflict && <div role="alert">
               <p>{conflict === 'deleted' ? 'This system was deleted in another window.' : 'This system was updated in another window.'} Your editor contents are preserved. Save them as a new system, or discard them and reload the saved settings.</p>
               <Button variant="outline" disabled={busy} onClick={() => { void refreshRef.current?.refresh(true); }}>Discard and reload</Button>
@@ -222,7 +232,7 @@ export function RatingSystemSettings({ open, onOpenChange, attributes, onCatalog
             {system && <>
               {system.builtIn && <p className="muted">Built-in preset · {ratingModelNote(system.id)} Choose New system to customize a copy.</p>}
               {system.id === hybridSystemId && <p className="muted">An evidence-informed performance index. Goalkeepers use separate GK evidence; Consistency contributes for outfield players. Position familiarity, set-piece taking, feet, morale, and condition are separate. <a href={hybridEvidenceUrl} target="_blank" rel="noreferrer">Research and methodology</a>.</p>}
-              <label className="rating-field" htmlFor="rating-system-name">System name<Input id="rating-system-name" value={systemName} maxLength={100} disabled={busy || system.builtIn} onChange={event => setSystemName(event.target.value)} /></label>
+              <label className="rating-field" htmlFor="rating-system-name">System name<Input id="rating-system-name" value={systemName} maxLength={100} disabled={readOnly || system.builtIn} onChange={event => setSystemName(event.target.value)} /></label>
               <div className="rating-editor-header">
                 <label className="rating-field" htmlFor="rating-role-picker">Role and duty
                   <Combobox items={filtered} value={selectedOption} onValueChange={option => { if (option && option.value !== roleId) leave({ kind: 'role', value: option.value }); }}
@@ -232,7 +242,7 @@ export function RatingSystemSettings({ open, onOpenChange, attributes, onCatalog
                       <ComboboxItem key={option.value} value={option}>{option.label}</ComboboxItem>}</ComboboxList></ComboboxContent>
                   </Combobox>
                 </label>
-                <label className="rating-field" htmlFor="rating-role-name">Role name<Input id="rating-role-name" value={roleName} maxLength={100} disabled={busy || system.builtIn} onChange={event => setRoleName(event.target.value)} /></label>
+                <label className="rating-field" htmlFor="rating-role-name">Role name<Input id="rating-role-name" value={roleName} maxLength={100} disabled={readOnly || system.builtIn} onChange={event => setRoleName(event.target.value)} /></label>
               </div>
               <p className="muted">Weight 0 excludes an attribute. Weights do not need to total 100. Rating = 5 × weighted sum ÷ total weight.</p>
               <div className="weight-groups">{weightGroups.map(group => <section className="weight-group" key={group}>
@@ -243,20 +253,20 @@ export function RatingSystemSettings({ open, onOpenChange, attributes, onCatalog
                   return <div className="weight-row" key={attribute.key}>
                     <label htmlFor={`weight-${attribute.key}`}>{attribute.label}</label>
                     <Input id={`weight-${attribute.key}`} aria-label={`${attribute.label} weight`} type="number" min="0" step="any" value={system.id === hybridSystemId ? Number(value).toFixed(4) : value}
-                      disabled={busy || system.builtIn} onChange={event => setWeights(previous => ({ ...previous, [attribute.key]: event.target.value }))} />
+                      disabled={readOnly || system.builtIn} onChange={event => setWeights(previous => ({ ...previous, [attribute.key]: event.target.value }))} />
                     <span>{Number.isFinite(share) ? share.toFixed(1) : '—'}%</span>
                   </div>;
                 })}
               </section>)}</div>
               <div className="rating-editor-actions">
                 <span className="muted">{dirty ? 'Unsaved changes' : `${system.roles.length} role profiles`}</span>
-                <Button disabled={busy || system.builtIn || !dirty || !!conflict} onClick={() => void save()}>Save changes</Button>
-                <Button variant="outline" disabled={busy || system.builtIn || !!conflict} onClick={() => openNaming('role')}>Save as new role</Button>
-                <Button variant="outline" disabled={busy} onClick={() => openNaming('system')}>Save as new system</Button>
+                <Button disabled={readOnly || system.builtIn || !dirty || !!conflict} onClick={() => void save()}>Save changes</Button>
+                <Button variant="outline" disabled={readOnly || !canAddRole || !!conflict} onClick={() => openNaming('role')}>Save as new role</Button>
+                <Button variant="outline" disabled={readOnly || !canAddSystem} onClick={() => openNaming('system')}>Save as new system</Button>
               </div>
               {!system.builtIn && <div className="rating-delete-actions">
-                {roleId.startsWith('custom-') && <Button variant="outline" disabled={busy || !!conflict} onClick={() => leave({ kind: 'deleteRole' })}>Delete role</Button>}
-                <Button variant="outline" disabled={busy || !!conflict} onClick={() => leave({ kind: 'deleteSystem' })}>Delete system</Button>
+                {roleId.startsWith('custom-') && <Button variant="outline" disabled={readOnly || !!conflict} onClick={() => leave({ kind: 'deleteRole' })}>Delete role</Button>}
+                <Button variant="outline" disabled={readOnly || !!conflict} onClick={() => leave({ kind: 'deleteSystem' })}>Delete system</Button>
               </div>}
             </>}
             {!system && <p className="muted">{busy ? 'Loading rating systems…' : 'Rating systems could not be loaded. Close and reopen Settings to retry.'}</p>}
@@ -266,6 +276,19 @@ export function RatingSystemSettings({ open, onOpenChange, attributes, onCatalog
         {notice && <output className="settings-notice">{notice}</output>}
       </DialogContent>
     </Dialog>
+    <AlertDialog open={resetOpen} onOpenChange={next => { if (!busy) setResetOpen(next); }}>
+      <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Reset rating systems?</AlertDialogTitle>
+        <AlertDialogDescription>The original file will be backed up in the workspace data directory before a fresh library is saved. FM-Arena Hybrid Rating will stay active. Your saves and snapshots are unchanged.</AlertDialogDescription></AlertDialogHeader>
+        {error && <p className="error-text" role="alert">{error}</p>}
+        <AlertDialogFooter><Button variant="outline" disabled={busy} onClick={() => setResetOpen(false)}>Cancel</Button>
+          <Button disabled={busy || !library?.recovery} onClick={() => void perform(async () => {
+            const next = await api<RatingSystems>('/rating-systems/reset', { method: 'POST', body: '{}' });
+            setLibrary(next); onCatalog(next.catalog); setResetOpen(false);
+            setNotice(`Rating systems reset. Original file saved as ${next.backupFilename} in the workspace data directory.`);
+            selectSystem(await api<RatingSystem>(`/rating-systems/${next.activeSystemId}`));
+          })}>{working ? 'Resetting…' : 'Back up and reset'}</Button></AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
     <AlertDialog open={pending !== null} onOpenChange={next => { if (!next && !busy) setPending(null); }}>
       <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Save your changes?</AlertDialogTitle>
         <AlertDialogDescription>Your edits to {system?.name} have not been saved.</AlertDialogDescription></AlertDialogHeader>
@@ -296,7 +319,7 @@ export function RatingSystemSettings({ open, onOpenChange, attributes, onCatalog
         <label className="rating-field" htmlFor="rating-copy-name">Name<Input id="rating-copy-name" maxLength={100} value={newName} disabled={busy} onChange={event => setNewName(event.target.value)} /></label>
         {error && <p className="error-text" role="alert">{error}</p>}
         {conflict && naming !== 'system' && <p role="alert">This system changed in another window. Close this dialog to reload the saved settings or save your draft as a new system.</p>}
-        <Button disabled={busy || !newName.trim() || !!conflict && naming !== 'system'} onClick={() => void saveNamed()}>{busy ? 'Saving…' : 'Save'}</Button>
+        <Button disabled={readOnly || (naming === 'role' ? !canAddRole : !canAddSystem) || !newName.trim() || !!conflict && naming !== 'system'} onClick={() => void saveNamed()}>{busy ? 'Saving…' : 'Save'}</Button>
       </DialogContent>
     </Dialog>
     <AlertDialog open={deletion !== null} onOpenChange={next => { if (!next && !busy) setDeletion(null); }}>
@@ -305,7 +328,7 @@ export function RatingSystemSettings({ open, onOpenChange, attributes, onCatalog
         {error && <p className="error-text" role="alert">{error}</p>}
         {conflict && <p role="alert">This system changed in another window. Cancel and reload the saved settings before deleting.</p>}
         <AlertDialogFooter><Button variant="outline" disabled={busy} onClick={() => setDeletion(null)}>Cancel</Button>
-          <Button variant="destructive" disabled={busy || !!conflict} onClick={() => void deleteConfirmed()}>Delete</Button></AlertDialogFooter>
+          <Button variant="destructive" disabled={readOnly || !!conflict} onClick={() => void deleteConfirmed()}>Delete</Button></AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
   </>;

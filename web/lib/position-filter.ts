@@ -2,13 +2,17 @@ export type PositionMatch = 'and' | 'or';
 
 export const defaultPositionFilters = { position: '', positionMatch: 'and' };
 
+export function positionMatchOf(value: string | undefined): PositionMatch {
+  return value === 'or' ? 'or' : 'and';
+}
+
 export function selectedPositions(position: string) {
   return position ? position.split(',') : [];
 }
 
 export function selectPositions(
   filters: Record<string, string>, positions: string[],
-  match: PositionMatch = filters.positionMatch === 'or' ? 'or' : 'and',
+  match: PositionMatch = positionMatchOf(filters.positionMatch),
 ) {
   const position = [...new Set(positions)].sort((a, b) => Number(a) - Number(b)).join(',');
   return {

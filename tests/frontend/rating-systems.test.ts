@@ -2,13 +2,33 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { setImmediate } from 'node:timers/promises';
-import type { Attribute, RoleCatalog, RatingSystem } from '../../web/lib/scout-api.ts';
-import { builtinSystemId, hybridSystemId, editRole, parseWeights, ratingIdentity, ratingModel, ratingModelNote, ratingParams, ratingSystemLabel, reconcileRatingView, roleWeights, sameRatingSystem, weightAttributes, weightDraft } from '../../web/lib/rating-systems.ts';
+import type { Attribute, RoleCatalog, RatingSystem, RatingSystems } from '../../web/lib/scout-api.ts';
+import { builtinSystemId, hybridSystemId, editRole, parseWeights, ratingCapacity, ratingIdentity, ratingModel, ratingModelNote, ratingParams, ratingSystemLabel, reconcileRatingView, roleWeights, sameRatingSystem, weightAttributes, weightDraft } from '../../web/lib/rating-systems.ts';
 import { currentValue, requestSnapshot, resourceKey } from '../../web/lib/snapshot-request.ts';
 
 const catalog = { ...JSON.parse(readFileSync(new URL('../../native/roles.json', import.meta.url), 'utf8')), systemId: builtinSystemId, systemName: 'Role Highlighted Rating', systemRevision: 1, builtIn: true } as RoleCatalog;
 const attributes = JSON.parse(readFileSync(new URL('../../native/parser/attributes.json', import.meta.url), 'utf8')).attributes as Attribute[];
 const system: RatingSystem = { id: 'test-system', name: 'Custom', revision: 1, builtIn: false, roles: catalog.roles };
+
+test('capacity excludes presets, permits edits at the limit, and blocks additions during recovery', () => {
+  const library: RatingSystems = {
+    activeSystemId: system.id, catalog, limits: { maxCustomSystems: 32, maxRolesPerSystem: 128 },
+    systems: [
+      ...[builtinSystemId, hybridSystemId].map(id => ({ ...system, id, builtIn: true, roleCount: 85 })),
+      ...Array.from({ length: 31 }, (_, i) => ({ ...system, id: String(i), roleCount: 85 })),
+    ],
+  };
+  assert.deepEqual(ratingCapacity(library, system), { canAddSystem: true, canAddRole: true });
+  library.systems.push({ ...system, roleCount: 85 });
+  const full = { ...system, roles: Array.from({ length: 128 }, () => system.roles[0]) };
+  assert.deepEqual(ratingCapacity(library, full), { canAddSystem: false, canAddRole: false });
+  assert.equal(ratingCapacity(library, { ...full, roles: full.roles.slice(0, 127) }).canAddRole, true);
+  assert.equal(ratingCapacity(library, { ...system, builtIn: true }).canAddRole, false);
+  library.recovery = { message: 'Unsupported file version' };
+  library.systems = [];
+  assert.deepEqual(ratingCapacity(library, system), { canAddSystem: false, canAddRole: false });
+  assert.deepEqual(ratingCapacity(null, null), { canAddSystem: false, canAddRole: false });
+});
 
 test('hybrid presentation uses system identity and distinguishes legacy name collisions', () => {
   assert.equal(ratingModel(builtinSystemId), 'highlighted');

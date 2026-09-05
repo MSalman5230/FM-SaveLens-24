@@ -16,7 +16,7 @@ This is an **evidence-informed performance index**, not a validated individual m
 
 For an attribute `a` and role/duty `r`:
 
-```
+```text
 impact(a) = reported points improvement / (tested upper value - tested lower value)
 boost(r, a) = 1.5 if key; 1.25 if preferable; 1 otherwise
 experimental(r, a) = impact(a) × boost(r, a)
@@ -41,13 +41,13 @@ Set-piece taking, feet, other hidden attributes, morale, condition, and team coh
 
 Long Shots has a reported improvement of 6 points across 12 attribute steps, so its experimental importance is `0.5`. It is not highlighted for CD (Defend), receives a ×1 boost, and has no role-component contribution. The adjusted experimental denominator for that profile is `349.25 / 12`.
 
-```
+```text
 Long Shots final weight = 100 × 0.70 × (0.5 / (349.25 / 12))
                        = 1.2025769506%
 
 Rating gain from Long Shots 10 → 20
                        = 5 × 10 × 0.012025769506
-                       = 0.6012884753 / 100
+                       = 0.6012884753 rating points on the 100-point scale
 ```
 
 Thus an unhighlighted but experimentally positive attribute contributes a small amount. In contrast, Marking has zero reported experimental effect but keeps the CD key-attribute contribution from the 30% role component.

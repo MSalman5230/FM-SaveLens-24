@@ -8,6 +8,281 @@ use fm_savelens_backend::{
 use serde_json::{json, Value};
 use std::fs;
 
+fn extra_roles(count: usize) -> Vec<fm_savelens_backend::roles::Role> {
+    let mut roles = BUILTIN.roles.clone();
+    while roles.len() < count {
+        let mut added = roles[0].clone();
+        added.id = format!("custom-{}", uuid::Uuid::new_v4());
+        added.name = format!("Extra {}", roles.len());
+        roles.push(added);
+    }
+    roles
+}
+
+#[test]
+fn role_and_library_limits_apply_to_creation_updates_and_loading() {
+    use fm_savelens_backend::rating_systems::{MAX_CUSTOM_SYSTEMS, MAX_ROLES_PER_SYSTEM};
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = RatingStore::default();
+    let roles = extra_roles(MAX_ROLES_PER_SYSTEM);
+    let first = store
+        .create(&json!({"name":"At role capacity","roles":roles}))
+        .unwrap();
+    let oversized = extra_roles(MAX_ROLES_PER_SYSTEM + 1);
+    assert!(store
+        .create(&json!({"name":"Too many roles","roles":oversized}))
+        .is_err());
+    assert!(store
+        .update(
+            &first.id,
+            &json!({"name":first.name,"revision":1,"roles":oversized})
+        )
+        .is_err());
+    assert_eq!(store.find(&first.id).unwrap().revision, 1);
+    for i in 1..MAX_CUSTOM_SYSTEMS {
+        store
+            .create(&json!({"name":format!("System {i}")}))
+            .unwrap();
+    }
+    assert!(store.create(&json!({"name":"One too many"})).is_err());
+    store
+        .update(&first.id, &json!({"name":"Still editable","revision":1}))
+        .unwrap();
+    store.persist(dir.path()).unwrap();
+    assert_eq!(
+        RatingStore::load(dir.path()).unwrap().systems.len(),
+        MAX_CUSTOM_SYSTEMS
+    );
+    store.systems[0].roles = oversized;
+    store.persist(dir.path()).unwrap();
+    assert!(RatingStore::load(dir.path()).is_err());
+    store.systems[0].roles = roles;
+    let mut extra = first;
+    extra.id = uuid::Uuid::new_v4().to_string();
+    extra.name = "Extra saved system".into();
+    store.systems.push(extra);
+    store.persist(dir.path()).unwrap();
+    assert!(RatingStore::load(dir.path()).is_err());
+}
+
+#[test]
+fn role_identifiers_source_metadata_and_preset_names_are_validated() {
+    for id in ["unknown-role", "custom-not-a-uuid"] {
+        let mut roles = BUILTIN.roles.clone();
+        let mut extra = roles[0].clone();
+        extra.id = id.into();
+        extra.name = "Extra".into();
+        roles.push(extra);
+        assert!(validate_roles(&mut roles).is_err());
+    }
+    for field in ["role", "duty", "group"] {
+        for custom in [false, true] {
+            let mut roles = BUILTIN.roles.clone();
+            let mut invalid = roles[0].clone();
+            if custom {
+                invalid.id = format!("custom-{}", uuid::Uuid::new_v4());
+                invalid.name = "Extra".into();
+            }
+            match field {
+                "role" => invalid.role = "unknown".into(),
+                "duty" => invalid.duty = "unknown".into(),
+                _ => invalid.group = "unknown".into(),
+            }
+            if custom {
+                roles.push(invalid);
+            } else {
+                roles[0] = invalid;
+            }
+            assert!(validate_roles(&mut roles).is_err());
+        }
+    }
+    let mut store = RatingStore::default();
+    let custom = store.create(&json!({"name":"Custom"})).unwrap();
+    for preset in [&*BUILTIN, &*HYBRID] {
+        for name in [
+            preset.name.to_uppercase(),
+            format!("  {}  ", preset.name.to_lowercase()),
+        ] {
+            assert!(store.create(&json!({"name":name})).is_err());
+            assert!(store
+                .update(&custom.id, &json!({"name":name,"revision":1}))
+                .is_err());
+        }
+    }
+}
+
+#[tokio::test]
+async fn corrupt_and_incompatible_libraries_start_read_only_until_backed_up_and_reset() {
+    use fm_savelens_backend::rating_systems::{MAX_CUSTOM_SYSTEMS, MAX_ROLES_PER_SYSTEM};
+    let mut valid = RatingStore::default();
+    valid.create(&json!({"name":"Saved"})).unwrap();
+    let value = serde_json::to_value(&valid).unwrap();
+    let mut version = value.clone();
+    version["schemaVersion"] = json!(2);
+    let mut invalid = value.clone();
+    invalid["systems"][0]["roles"] = json!([]);
+    let mut unknown = value.clone();
+    unknown["activeSystemId"] = json!("missing");
+    let mut too_many_roles = value.clone();
+    too_many_roles["systems"][0]["roles"] = json!(extra_roles(MAX_ROLES_PER_SYSTEM + 1));
+    let mut too_many_systems = value.clone();
+    too_many_systems["systems"] = json!(vec![&value["systems"][0]; MAX_CUSTOM_SYSTEMS + 1]);
+    let mut cases = vec![b"{not json".to_vec()];
+    cases.extend(
+        [version, invalid, unknown, too_many_roles, too_many_systems]
+            .iter()
+            .map(|v| serde_json::to_vec(v).unwrap()),
+    );
+    let client = reqwest::Client::new();
+    for original in cases {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("rating-systems.json");
+        fs::write(&path, &original).unwrap();
+        let server = service::start(0, dir.path()).await.unwrap();
+        let url = server.url();
+        let library = request(
+            &client,
+            &url,
+            reqwest::Method::GET,
+            "/rating-systems",
+            None,
+            200,
+        )
+        .await;
+        assert!(library["recovery"]["message"].is_string());
+        assert_eq!(library["activeSystemId"], DEFAULT_ID);
+        assert_eq!(library["systems"].as_array().unwrap().len(), 2);
+        assert_eq!(
+            library["limits"],
+            json!({"maxCustomSystems":32,"maxRolesPerSystem":128})
+        );
+        request(&client, &url, reqwest::Method::GET, "/roles", None, 200).await;
+        request(
+            &client,
+            &url,
+            reqwest::Method::PUT,
+            "/settings",
+            Some(json!({"folder":dir.path()})),
+            200,
+        )
+        .await;
+        for (method, endpoint, body) in [
+            (
+                reqwest::Method::POST,
+                "/rating-systems".to_owned(),
+                json!({"name":"Blocked"}),
+            ),
+            (
+                reqwest::Method::PUT,
+                "/rating-systems/active".to_owned(),
+                json!({"systemId":BUILTIN_ID}),
+            ),
+            (
+                reqwest::Method::PUT,
+                format!("/rating-systems/{}", valid.systems[0].id),
+                json!({"name":"Blocked","revision":1}),
+            ),
+            (
+                reqwest::Method::DELETE,
+                format!("/rating-systems/{}", valid.systems[0].id),
+                Value::Null,
+            ),
+        ] {
+            let error = request(
+                &client,
+                &url,
+                method,
+                &endpoint,
+                (!body.is_null()).then_some(body),
+                409,
+            )
+            .await;
+            assert_eq!(error["code"], "RECOVERY_REQUIRED");
+        }
+        assert_eq!(fs::read(&path).unwrap(), original);
+        let reset = request(
+            &client,
+            &url,
+            reqwest::Method::POST,
+            "/rating-systems/reset",
+            Some(json!({})),
+            200,
+        )
+        .await;
+        assert!(reset.get("recovery").is_none());
+        let backup = reset["backupFilename"].as_str().unwrap();
+        assert!(backup.starts_with("rating-systems.backup-"));
+        assert_eq!(fs::read(dir.path().join(backup)).unwrap(), original);
+        request(
+            &client,
+            &url,
+            reqwest::Method::POST,
+            "/rating-systems/reset",
+            Some(json!({})),
+            409,
+        )
+        .await;
+        let created = request(
+            &client,
+            &url,
+            reqwest::Method::POST,
+            "/rating-systems",
+            Some(json!({"name":"Recovered"})),
+            201,
+        )
+        .await;
+        server.shutdown().await.unwrap();
+        let server = service::start(0, dir.path()).await.unwrap();
+        let restarted = request(
+            &client,
+            &server.url(),
+            reqwest::Method::GET,
+            "/rating-systems",
+            None,
+            200,
+        )
+        .await;
+        assert!(restarted.get("recovery").is_none());
+        assert!(restarted["systems"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|s| s["id"] == created["id"]));
+        assert_eq!(fs::read(dir.path().join(backup)).unwrap(), original);
+        server.shutdown().await.unwrap();
+    }
+}
+
+#[tokio::test]
+async fn unreadable_recovery_source_cannot_be_reset_or_overwritten() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("rating-systems.json");
+    fs::create_dir(&path).unwrap();
+    let server = service::start(0, dir.path()).await.unwrap();
+    let client = reqwest::Client::new();
+    request(
+        &client,
+        &server.url(),
+        reqwest::Method::POST,
+        "/rating-systems/reset",
+        Some(json!({})),
+        500,
+    )
+    .await;
+    assert!(path.is_dir());
+    let library = request(
+        &client,
+        &server.url(),
+        reqwest::Method::GET,
+        "/rating-systems",
+        None,
+        200,
+    )
+    .await;
+    assert!(library["recovery"].is_object());
+    server.shutdown().await.unwrap();
+}
+
 #[test]
 fn builtin_scores_are_identical_and_custom_weights_have_the_expected_mean() {
     for value in [1.0, 10.25, 15.0, 20.0] {

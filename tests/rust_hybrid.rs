@@ -88,7 +88,7 @@ fn every_hybrid_profile_is_complete_normalized_and_reconciles_components() {
         ] {
             assert!(!weights.contains_key(excluded), "{}: {excluded}", role.id);
         }
-        if matches!(role.role.as_str(), "gk" | "sk") {
+        if role.group == "Goalkeepers" {
             for excluded in [
                 "pace",
                 "consistency",

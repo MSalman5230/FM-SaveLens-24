@@ -11,6 +11,8 @@ use std::{collections::HashSet, fs, io::Write, path::Path, sync::LazyLock};
 
 pub const BUILTIN_ID: &str = "role-highlighted-rating";
 pub const DEFAULT_ID: &str = hybrid::SYSTEM_ID;
+pub const MAX_CUSTOM_SYSTEMS: usize = 32;
+pub const MAX_ROLES_PER_SYSTEM: usize = 128;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -77,6 +79,11 @@ fn name(value: &str) -> Result<String> {
 }
 
 pub fn validate_roles(roles: &mut [Role]) -> Result<()> {
+    if roles.len() > MAX_ROLES_PER_SYSTEM {
+        return Err(Error::query(format!(
+            "A system can contain at most {MAX_ROLES_PER_SYSTEM} role profiles."
+        )));
+    }
     let mut ids = HashSet::new();
     let mut names = HashSet::new();
     for role in roles.iter_mut() {
@@ -212,12 +219,21 @@ impl Default for RatingStore {
 impl RatingStore {
     pub fn load(data: &Path) -> Result<Self> {
         let path = data.join("rating-systems.json");
-        if !path.exists() {
-            return Ok(Self::default());
-        }
-        let mut store: Self = serde_json::from_slice(&fs::read(path)?)?;
+        let bytes = match fs::read(path) {
+            Ok(bytes) => bytes,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Ok(Self::default())
+            }
+            Err(error) => return Err(error.into()),
+        };
+        let mut store: Self = serde_json::from_slice(&bytes)?;
         if store.schema_version != 1 {
             return Err(Error::query("Unsupported rating systems file version."));
+        }
+        if store.systems.len() > MAX_CUSTOM_SYSTEMS {
+            return Err(Error::query(format!(
+                "A workspace can contain at most {MAX_CUSTOM_SYSTEMS} custom rating systems."
+            )));
         }
         let mut ids = HashSet::new();
         let mut names = HashSet::from([BUILTIN.name.to_lowercase()]);
@@ -265,10 +281,16 @@ impl RatingStore {
         json!({"activeSystemId": self.active_system_id,
             "systems": builtins().into_iter().chain(self.systems.iter()).map(|system|
                 json!({"id":system.id,"name":system.name,"revision":system.revision,"builtIn":system.built_in,"roleCount":system.roles.len()})
-            ).collect::<Vec<_>>(), "catalog": self.active().catalog()})
+            ).collect::<Vec<_>>(), "catalog": self.active().catalog(),
+            "limits": {"maxCustomSystems": MAX_CUSTOM_SYSTEMS, "maxRolesPerSystem": MAX_ROLES_PER_SYSTEM}})
     }
 
     pub fn create(&mut self, body: &Value) -> Result<RatingSystem> {
+        if self.systems.len() >= MAX_CUSTOM_SYSTEMS {
+            return Err(Error::query(format!(
+                "A workspace can contain at most {MAX_CUSTOM_SYSTEMS} custom rating systems."
+            )));
+        }
         let source = self.find(body["sourceId"].as_str().unwrap_or(DEFAULT_ID))?;
         let mut system = source.clone();
         system.id = uuid::Uuid::new_v4().to_string();

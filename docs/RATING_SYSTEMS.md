@@ -22,11 +22,16 @@ SQL and player-detail calculations use the same validated weight maps. Null scor
 
 `rating-systems.json` lives in the existing application data directory. Its version-1 structure contains `schemaVersion`, `activeSystemId`, and custom `systems`. Both built-in systems are supplied by bundled definitions and are not editable. Systems contain `id`, `name`, `revision`, `builtIn`, and complete `roles` with explicit `weights` maps. Copies preserve role IDs; added roles use `custom-<UUID>` IDs. Existing custom names that collide with a newly bundled preset remain loadable; new naming changes cannot use reserved preset names.
 
-Writes are atomic and published to memory only after successful persistence. Folder changes and imports leave rating systems intact. Workspaces without a saved selection default to `fm-arena-hybrid-rating`; saved selections are preserved; snapshots need no migration or reimport. Saved calculations are reusable definitions, not frozen player results. Malformed or unsupported persisted definitions fail loading without overwriting the file.
+Writes are serialized separately from other workspace operations, atomic, and published to memory only after successful persistence. Folder changes and imports leave rating systems intact. Workspaces without a saved selection default to `fm-arena-hybrid-rating`; saved selections are preserved; snapshots need no migration or reimport. Saved calculations are reusable definitions, not frozen player results.
+
+Libraries support at most **32 custom systems** and **128 profiles per system**, including the 85 required original profiles. The API enforces these limits for creation, updates, and saved files. Settings shows the limits and disables additions at capacity; existing definitions can still be edited or deleted.
+
+If the rating file is corrupt, unsupported, invalid, or over capacity, the app starts with the built-in presets and FM-Arena Hybrid Rating active. The original file stays unchanged and rating writes are blocked. Settings shows the loading error and offers **Reset rating systems**. Confirming backs up the original bytes to a unique `rating-systems.backup-<UUID>.json` in the same application data directory, flushes that backup, and then atomically saves a fresh library. Failed backup or persistence leaves recovery pending. Alternatively, repair the original file and restart. Browsing, save-folder settings, and snapshots remain available during recovery.
 
 ## API
 
-- `GET /api/rating-systems`: system summaries, `activeSystemId`, and the active `catalog`.
+- `GET /api/rating-systems`: system summaries, `activeSystemId`, active `catalog`, and `limits: {maxCustomSystems, maxRolesPerSystem}`. During recovery, also includes `recovery: {message}`.
+- `POST /api/rating-systems/reset`: send `{}` during recovery; backs up the original file and returns the fresh library plus `backupFilename`. Returns 409 if another window already recovered; backup/write failures return 500 without publishing new state.
 - `GET /api/rating-systems/:id`: full system definition.
 - `POST /api/rating-systems`: create a system with `{name, sourceId?, roles?}`. The default source is FM-Arena Hybrid Rating. Omitted roles copy the source; supplied roles capture a draft. Returns the created system with status 201.
 - `PUT /api/rating-systems/:id`: update `{name, revision, roles?}`. The revision must match; stale writes return 409. Successful updates increment the revision and return the saved system.
@@ -34,6 +39,8 @@ Writes are atomic and published to memory only after successful persistence. Fol
 - `DELETE /api/rating-systems/:id`: delete a custom system and return the updated list/catalog. Built-in modification/deletion and invalid definitions return 400; unknown systems return 404.
 
 System write bodies support up to 4 MiB. All 85 original role IDs must remain present; only added roles may be removed. Role metadata is anchored to a valid bundled role/duty, and only allowlisted attribute keys and finite numeric weights reach SQL.
+
+During recovery, all rating mutations except reset return HTTP 409 with `{error: string, code: "RECOVERY_REQUIRED"}`. Other errors retain their existing response format.
 
 `GET /api/roles` now returns the **active** catalog with `systemId`, `systemName`, `systemRevision`, `builtIn`, and explicit role `weights`. The bundled version/source metadata remains available. Custom systems use model version `attribute-weights-v1` and omit the fixed `keyWeight` / `preferableWeight` fields.
 

@@ -8,6 +8,7 @@ import type { RatingSystem, RatingSystems } from '../../web/lib/scout-api.ts';
 const system = (id: string, revision = 1): RatingSystem => ({ id, revision, name: id, builtIn: false, roles: [] });
 const a = system('A'), b = system('B');
 const library = (active = a, systems = [active, b]): RatingSystems => ({
+  limits: { maxCustomSystems: 32, maxRolesPerSystem: 128 },
   activeSystemId: active.id,
   systems: systems.map(({ roles, ...summary }) => ({ ...summary, roleCount: roles.length })),
   catalog: { systemId: active.id, systemRevision: active.revision, systemName: active.name, builtIn: false,

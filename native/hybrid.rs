@@ -84,7 +84,7 @@ pub static TESTING_ROLES: LazyLock<BTreeMap<String, Role>> = LazyLock::new(|| {
         .roles
         .iter()
         .map(|source| {
-            let experiments = if matches!(source.role.as_str(), "gk" | "sk") {
+            let experiments = if source.group == "Goalkeepers" {
                 &EVIDENCE.goalkeeper
             } else {
                 &EVIDENCE.outfield

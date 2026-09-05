@@ -236,7 +236,7 @@ function ComboboxChip({
   className,
   children,
   showRemove = true,
-  removeLabel,
+  removeLabel = 'Remove',
   ...props
 }: ComboboxPrimitive.Chip.Props & {
   showRemove?: boolean;
