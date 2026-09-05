@@ -2,17 +2,20 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import type { RoleCatalog } from '../../web/lib/scout-api.ts';
-import { columnMatches, defaultColumns, normalizeColumns, playerColumns, restoreColumns, resolveColumnSort, sortAfterColumns, visibleSort } from '../../web/lib/player-columns.ts';
+import { columnMatches, defaultColumns, normalizeColumns, playerColumns, restoreColumns, restoreColumnPreferences, resolveColumnSort, sortAfterColumns, visibleSort } from '../../web/lib/player-columns.ts';
 import { playerQuery, selectRole } from '../../web/lib/role-ratings.ts';
 import { currentValue, resourceKey } from '../../web/lib/snapshot-request.ts';
+import { playerSearchQuery } from '../../web/lib/rating-systems.ts';
+import { PlayerPageCache } from '../../web/lib/player-page-cache.ts';
+import type { Results } from '../../web/lib/scout-api.ts';
 
 const catalog = JSON.parse(readFileSync(new URL('../../native/roles.json', import.meta.url), 'utf8')) as RoleCatalog;
 const available = playerColumns(catalog.roles);
 
 test('the view accepts all 85 roles together and each duty has its own sortable column', () => {
   const ids = normalizeColumns(available.map(c => c.id), available);
-  assert.equal(ids.length, 92);
-  assert.equal(new Set(ids).size, 92);
+  assert.equal(ids.length, 93);
+  assert.equal(new Set(ids).size, 93);
   for (const role of catalog.roles) {
     const column = available.find(c => c.roleId === role.id)!;
     assert.equal(column.sort, `role:${role.id}`);
@@ -21,6 +24,28 @@ test('the view accepts all 85 roles together and each duty has its own sortable 
   assert.ok(available.filter(c => columnMatches(c, 'advanced playmaker')).length >= 2);
   assert.equal(available.filter(c => columnMatches(c, 'target man')).length, 2);
   assert.equal(available.filter(c => columnMatches(c, 'advanced forward attack')).length, 1);
+});
+
+test('legacy preferences gain the best role once without reordering or restoring a removed column', () => {
+  const legacy = ['name', 'role:ap-support', 'positions', 'pa', 'age'];
+  const migrated = restoreColumnPreferences(null, JSON.stringify(legacy), available);
+  assert.deepEqual(migrated, ['name', 'role:ap-support', 'positions', 'bestRoleRating', 'pa', 'age']);
+  assert.deepEqual(restoreColumnPreferences(JSON.stringify(migrated), JSON.stringify(legacy), available), migrated);
+  assert.deepEqual(restoreColumnPreferences(JSON.stringify(legacy), JSON.stringify(legacy), available), legacy);
+  assert.deepEqual(restoreColumnPreferences(null, '["name","pa"]', available), ['name', 'pa', 'bestRoleRating']);
+  for (const legacyRaw of [null, 'broken', '{}']) {
+    assert.deepEqual(restoreColumnPreferences(null, legacyRaw, available), defaultColumns);
+  }
+  assert.deepEqual(restoreColumnPreferences('[]', JSON.stringify(legacy), available), ['name']);
+  assert.equal(defaultColumns[defaultColumns.indexOf('positions') + 1], 'bestRoleRating');
+});
+
+test('best role sorting survives system reconciliation and falls back when its column is removed', () => {
+  assert.equal(available.find(column => column.id === 'bestRoleRating')?.sort, 'bestRoleRating');
+  for (const direction of ['asc', 'desc']) {
+    assert.deepEqual(resolveColumnSort(defaultColumns, 'bestRoleRating', direction, 'af-attack'), { sort: 'bestRoleRating', direction });
+  }
+  assert.deepEqual(resolveColumnSort(defaultColumns.filter(id => id !== 'bestRoleRating'), 'bestRoleRating', 'asc', ''), { sort: 'pa', direction: 'desc' });
 });
 
 test('saved views restore order, deduplicate roles, discard unknown columns and retain player names', () => {
@@ -108,20 +133,44 @@ test('clearing role filters falls back visibly while retaining independent visib
   });
 });
 
-test('browser search queries and scoped results use the visible default sort', () => {
+test('browser search and the table share rated queries, scoped results and one cached request', async () => {
   for (const withPA of [true, false]) {
     const ids = withPA ? [...defaultColumns, 'role:af-attack'] : ['name', 'role:af-attack'];
     const sorting = resolveColumnSort(ids, 'pa', 'desc', '');
     const filters = { q: 'Ali', paMin: '150', role: '', roleMin: '' };
-    const query = playerQuery(filters, sorting.sort, sorting.direction, 1, '50', ['af-attack']);
-    const expected = new URLSearchParams({
+    const identity = { systemId: 'custom-forward', systemRevision: 7 };
+    const bestRole = ids.includes('bestRoleRating');
+    const query = playerSearchQuery(filters, sorting.sort, sorting.direction, 1, '50', ['af-attack'], bestRole, identity);
+    const expectedParams = new URLSearchParams({
       sort: withPA ? 'pa' : 'name', direction: withPA ? 'desc' : 'asc', page: '1', limit: '50',
       q: 'Ali', paMin: '150', roles: 'af-attack',
-    }).toString();
+    });
+    if (bestRole) expectedParams.set('bestRole', '1');
+    expectedParams.set('systemId', identity.systemId);
+    expectedParams.set('systemRevision', String(identity.systemRevision));
+    const expected = expectedParams.toString();
     assert.equal(query, expected);
-    const found = { total: 1, players: [{ id: 7 }], page: 1, limit: 50 };
+    const cache = new PlayerPageCache('saveA', identity);
+    let calls = 0;
+    const request = async (path: string): Promise<Results> => {
+      calls++;
+      const params = new URLSearchParams(path.split('?')[1]);
+      assert.equal(params.get('bestRole'), bestRole ? '1' : null);
+      assert.equal(params.get('roles'), 'af-attack');
+      assert.equal(params.get('systemId'), identity.systemId);
+      assert.equal(params.get('systemRevision'), '7');
+      return { ...identity, total: 0, players: [], page: 1, limit: 50 };
+    };
+    const found = await cache.load(query, request);
     const response = { key: resourceKey('saveA', query), value: found };
     assert.equal(currentValue(response, resourceKey('saveA', expected)), found);
+    assert.deepEqual(cache.peek(expected), found);
+    await cache.load(expected, request);
+    assert.equal(calls, 1);
+    const changedQuery = playerSearchQuery(filters, sorting.sort, sorting.direction, 1, '50', ['af-attack'], bestRole, { ...identity, systemRevision: 8 });
+    assert.equal(currentValue(response, resourceKey('saveA', changedQuery)), null);
+    assert.equal(cache.peek(changedQuery), null);
+    cache.clear();
   }
 });
 

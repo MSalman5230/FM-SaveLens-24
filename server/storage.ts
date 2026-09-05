@@ -1,5 +1,5 @@
 import { DatabaseSync } from "node:sqlite";
-import { ATTRIBUTES } from "./parser/attributes.ts";
+import { ATTRIBUTES, POSITIONS } from "./parser/attributes.ts";
 import type { ParsedSave } from "./parser/index.ts";
 import countries from "./parser/nations.json" with { type: "json" };
 export const nationName = (id: number) =>
@@ -132,10 +132,25 @@ export function searchPlayers(db: DatabaseSync, params: URLSearchParams) {
     where.push("EXISTS (SELECT 1 FROM json_each(players.nations) WHERE value = ?)");
     args.push(nation);
   }
-  const pos = integer("position", 0, 14);
-  if (pos !== undefined) {
-    where.push("(position_mask & ?) != 0");
-    args.push(1 << pos);
+  const positionMatch = params.get("positionMatch") ?? "and";
+  if (positionMatch !== "and" && positionMatch !== "or")
+    throw new QueryError("Invalid positionMatch. Expected 'and' or 'or'.");
+  const positions = params.get("position");
+  if (positions) {
+    let mask = 0;
+    for (const entry of positions.split(",")) {
+      const id = entry.trim(), index = Number(id);
+      if (!/^\d+$/.test(id) || !Number.isSafeInteger(index) || index >= POSITIONS.length)
+        throw new QueryError("Invalid position.");
+      mask |= 1 << index;
+    }
+    if (positionMatch === "and") {
+      where.push("(position_mask & ?) = ?");
+      args.push(mask, mask);
+    } else {
+      where.push("(position_mask & ?) != 0");
+      args.push(mask);
+    }
   }
   for (const a of ATTRIBUTES) {
     const min = integer("attr_" + a.key, 1, 20);

@@ -1,6 +1,6 @@
 "use client";
 import Image from "next/image";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import {
   Search,
@@ -33,13 +33,6 @@ import {
   ComboboxEmpty,
 } from "@/components/ui/combobox";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import {
   Sheet,
   SheetContent,
   SheetHeader,
@@ -47,16 +40,23 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import { Progress, ProgressLabel, ProgressValue } from "@/components/ui/progress";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Pagination, PaginationContent, PaginationItem } from "@/components/ui/pagination";
-import { api, date, size } from "@/lib/scout-api";
+import { api, ApiError, date, size } from "@/lib/scout-api";
 import { watchSnapshotFocus } from "@/lib/focus-refresh";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { RoleRatings } from "@/components/role-ratings";
-import { playerQuery, roleLabel, selectRole } from "@/lib/role-ratings";
+import { RatingSystemSettings } from "@/components/rating-system-settings";
+import { playerSearchQuery, ratingIdentity, ratingParams, reconcileRatingView, sameRatingSystem } from "@/lib/rating-systems";
+import { roleLabel, selectRole } from "@/lib/role-ratings";
 import { PlayerColumnChooser } from "@/components/player-column-chooser";
 import { PlayerListTable } from "@/components/player-list-table";
-import { columnStorageKey, defaultColumns, normalizeColumns, playerColumns, restoreColumns, resolveColumnSort, visibleSort } from "@/lib/player-columns";
+import { PositionFilter, PositionMatching } from "@/components/position-filter";
+import { activeFilterCount, advancedFilterCount, defaultPositionFilters, positionMatchOf, selectedPositions, selectPositions } from "@/lib/position-filter";
+import type { PositionMatch } from "@/lib/position-filter";
+import { columnStorageKey, legacyColumnStorageKey, defaultColumns, normalizeColumns, playerColumns, restoreColumnPreferences, resolveColumnSort, visibleSort } from "@/lib/player-columns";
 import { currentValue, requestSnapshot, resourceKey } from "@/lib/snapshot-request";
+import { PlayerPageCache } from "@/lib/player-page-cache";
 import type { ScopedValue } from "@/lib/snapshot-request";
 import type {
   Attribute,
@@ -161,7 +161,7 @@ const defaultFilters: Record<string, string> = {
   q: "",
   club: "",
   nation: "",
-  position: "",
+  ...defaultPositionFilters,
   role: "",
   roleMin: "",
   ageMin: "",
@@ -189,10 +189,17 @@ export default function Home() {
   const [attributes, setAttributes] = useState<Attribute[]>([]),
     [positions, setPositions] = useState<string[]>([]);
   const [roleCatalog, setRoleCatalog] = useState<RoleCatalog | null>(null);
+  const applyRoleCatalog = useCallback((next: RoleCatalog) => {
+    setRoleCatalog(previous => sameRatingSystem(next, previous) ? previous : next);
+  }, []);
+  const refreshRoleCatalog = useCallback(async () => {
+    applyRoleCatalog(await api<RoleCatalog>('/roles'));
+  }, [applyRoleCatalog]);
   const [columnIds, setColumnIds] = useState<string[]>(defaultColumns);
   const availableColumns = useMemo(() => playerColumns(roleCatalog?.roles ?? []), [roleCatalog]);
   const displayedColumns = useMemo(() => columnIds.flatMap(id => availableColumns.filter(column => column.id === id)), [columnIds, availableColumns]);
   const displayedRoleIds = useMemo(() => displayedColumns.flatMap(column => column.roleId ? [column.roleId] : []).sort(), [displayedColumns]);
+  const displayBestRole = columnIds.includes('bestRoleRating');
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null),
     [job, setJob] = useState<Job | null>(null),
     [starting, setStarting] = useState(false);
@@ -208,8 +215,9 @@ export default function Home() {
     [direction, setDirection] = useState("desc"),
     [page, setPage] = useState(1),
     [limit, setLimit] = useState("50");
+  const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
   const [searchResponse, setSearchResponse] = useState<ScopedValue<Results> | null>(null),
-    [searching, setSearching] = useState(false),
+    [spinnerKey, setSpinnerKey] = useState<string | null>(null),
     [searchError, setSearchError] = useState("");
   const [attributeKey, setAttributeKey] = useState(""),
     [attributeMin, setAttributeMin] = useState("15");
@@ -221,7 +229,12 @@ export default function Home() {
     jobStatus = job?.status,
     snapshotId = snapshot?.snapshotId;
   const running = jobStatus === "running";
-  const detailKey = resourceKey(snapshotId, detailId);
+  const systemKey = ratingIdentity(roleCatalog);
+  const systemQuery = ratingParams(roleCatalog);
+  const pageCache = useMemo(() => new PlayerPageCache(snapshotId ?? '', roleCatalog), [snapshotId, roleCatalog]);
+  useEffect(() => () => pageCache.clear(), [pageCache]);
+  const previousFilters = useRef(filters);
+  const detailKey = resourceKey(snapshotId, `${detailId}:${systemKey}`);
   const detail = currentValue(detailResponse, detailKey);
   const chosen = saves.find((s) => s.id === selected);
   const applySaves = useCallback((files: SaveFile[], preferSnapshot?: string) => {
@@ -264,7 +277,7 @@ export default function Home() {
         setPositions(catalog.positions);
         setRoleCatalog(roles);
         try {
-          const restored = restoreColumns(window.localStorage.getItem(columnStorageKey), playerColumns(roles.roles));
+          const restored = restoreColumnPreferences(window.localStorage.getItem(columnStorageKey), window.localStorage.getItem(legacyColumnStorageKey), playerColumns(roles.roles));
           const nextSort = resolveColumnSort(restored, 'pa', 'desc', '');
           setColumnIds(restored);
           setSort(nextSort.sort);
@@ -324,36 +337,92 @@ export default function Home() {
       setSaves: applySaves,
     });
   }, [snapshotId, applySaves]);
-  const query = useMemo(() => playerQuery(filters, sort, direction, page, limit, displayedRoleIds), [filters, sort, direction, page, limit, displayedRoleIds]);
+  const [viewSystemKey, setViewSystemKey] = useState('');
+  if (roleCatalog && viewSystemKey !== systemKey) {
+    setViewSystemKey(systemKey);
+    const next = reconcileRatingView(roleCatalog, filters, columnIds, sort, direction);
+    setFilters(next.filters);
+    setColumnIds(next.columnIds);
+    setSort(next.sort);
+    setDirection(next.direction);
+    setDetailRole(previous => roleCatalog.roles.some(role => role.id === previous) ? previous : '');
+    setPage(1);
+  }
+  useEffect(() => {
+    if (initializing) return;
+    try { window.localStorage.setItem(columnStorageKey, JSON.stringify(columnIds)); } catch { /* Device preferences are optional. */ }
+  }, [columnIds, initializing]);
+  // Another local window may change the workspace's active system.
+  useEffect(() => {
+    if (settingsOpen) return; // The open editor refreshes the library and publishes its catalog.
+    let controller: AbortController | undefined;
+    const refresh = () => {
+      controller?.abort();
+      controller = new AbortController();
+      const { signal } = controller;
+      void api<RoleCatalog>('/roles', { signal }).then(next => {
+        if (!signal.aborted) applyRoleCatalog(next);
+      }).catch(e => { if (!signal.aborted) setError(errorText(e)); });
+    };
+    window.addEventListener('focus', refresh);
+    return () => { controller?.abort(); window.removeEventListener('focus', refresh); };
+  }, [applyRoleCatalog, settingsOpen]);
+  const query = useMemo(() => playerSearchQuery(filters, sort, direction, page, limit, displayedRoleIds, displayBestRole, roleCatalog), [filters, sort, direction, page, limit, displayedRoleIds, displayBestRole, roleCatalog]);
   const searchKey = resourceKey(snapshotId, query);
-  const result = currentValue(searchResponse, searchKey);
+  const result = pageCache.peek(query) ?? currentValue(searchResponse, searchKey);
+  const searching = Boolean(snapshotId && roleCatalog && !result && !searchError);
+  const showSearchSpinner = searching && spinnerKey === searchKey;
+  const searchMessage = pageCache.prepared ? 'Searching players…' : 'Preparing player ratings…';
   // Remote request state must reset whenever a new search starts.
   // oxlint-disable-next-line react/react-compiler
   useEffect(() => {
     // oxlint-disable-next-line react/react-compiler -- reset state for this remote request
-    setSearching(Boolean(snapshotId));
+    setSpinnerKey(null);
     setSearchError("");
-    if (!snapshotId) return;
-    return requestSnapshot<Results>({
-      path: `/snapshots/${snapshotId}/players?${query}`, request: api, delay: 200,
-      onValue: value => setSearchResponse({ key: searchKey, value }),
-      onError: e => { setSearchError(errorText(e)); setSearchResponse(null); },
-      onSettled: () => setSearching(false),
+    const filtersChanged = previousFilters.current !== filters;
+    previousFilters.current = filters;
+    if (!snapshotId || !roleCatalog) return;
+    const cached = pageCache.peek(query);
+    if (cached) {
+      void pageCache.load(query, api<Results>); // Touch the LRU without a request.
+      setSearchResponse({ key: searchKey, value: cached });
+      return;
+    }
+    const spinner = setTimeout(() => setSpinnerKey(searchKey), pageCache.prepared ? 150 : 0);
+    const stop = requestSnapshot<Results>({
+      path: query, request: path => pageCache.load(path, api<Results>), delay: filtersChanged ? 200 : 0,
+      onValue: value => {
+        if (sameRatingSystem(value, roleCatalog)) setSearchResponse({ key: searchKey, value });
+        else void refreshRoleCatalog().catch(e => setSearchError(errorText(e)));
+      },
+      onError: e => {
+        setSearchResponse(null);
+        if (e instanceof ApiError && e.status === 409) void refreshRoleCatalog().catch(error => setSearchError(errorText(error)));
+        else setSearchError(errorText(e));
+      },
+      onSettled: () => { clearTimeout(spinner); setSpinnerKey(null); },
     });
-  }, [snapshotId, query, searchKey]);
+    return () => { clearTimeout(spinner); stop(); };
+  }, [snapshotId, query, searchKey, roleCatalog, refreshRoleCatalog, pageCache, filters]);
   // Clear the previous player's remote data before requesting another identity.
   // oxlint-disable-next-line react/react-compiler
   useEffect(() => {
     // oxlint-disable-next-line react/react-compiler -- prevent displaying the previous identity
     setDetailResponse(null);
     setDetailError("");
-    if (detailId === null || !snapshotId) return;
+    if (detailId === null || !snapshotId || !roleCatalog) return;
     return requestSnapshot<Detail>({
-      path: `/snapshots/${snapshotId}/players/${detailId}`, request: api,
-      onValue: value => setDetailResponse({ key: detailKey, value }),
-      onError: e => setDetailError(errorText(e)),
+      path: `/snapshots/${snapshotId}/players/${detailId}?${systemQuery}`, request: api,
+      onValue: value => {
+        if (sameRatingSystem(value, roleCatalog)) setDetailResponse({ key: detailKey, value });
+        else void refreshRoleCatalog().catch(e => setDetailError(errorText(e)));
+      },
+      onError: e => {
+        if (e instanceof ApiError && e.status === 409) void refreshRoleCatalog().catch(error => setDetailError(errorText(error)));
+        else setDetailError(errorText(e));
+      },
     });
-  }, [detailId, snapshotId, detailKey]);
+  }, [detailId, snapshotId, detailKey, systemQuery, roleCatalog, refreshRoleCatalog]);
   function openPlayer(id: number, roleId?: string) {
     setDetailRole(roleId ?? (sort.startsWith('role:') ? sort.slice(5) : filters.role));
     setDetailId(id);
@@ -361,8 +430,6 @@ export default function Home() {
   function saveColumns(ids: string[]) {
     const next = normalizeColumns(ids, availableColumns);
     setColumnIds(next);
-    try { window.localStorage.setItem(columnStorageKey, JSON.stringify(next)); }
-    catch { /* Column editing remains available without device storage. */ }
     return next;
   }
   function changeColumns(ids: string[]) {
@@ -382,6 +449,11 @@ export default function Home() {
   const updateFilter = (key: string, value: string) => {
     setFilters((f) => ({ ...f, [key]: value }));
     setPage(1);
+  };
+  const changePositions = (positions: string[], match?: PositionMatch) => {
+    const next = selectPositions(filters, positions, match);
+    setFilters(next.filters);
+    setPage(next.page);
   };
   const clearFilters = () => {
     const nextSort = resolveColumnSort(columnIds, sort, direction, '');
@@ -479,7 +551,8 @@ export default function Home() {
     .map(role => ({ value: role.id, label: roleLabel(role), description: role.group }))
     .sort((a, b) => a.label.localeCompare(b.label)), [roleCatalog]);
   const selectedRole = roleCatalog?.roles.find(role => role.id === filters.role);
-  const activeFilters = Object.values(filters).filter(Boolean).length;
+  const activeFilters = activeFilterCount(filters);
+  const advancedFilters = advancedFilterCount(filters);
   function changeSort(key: string) {
     setSort(key);
     setDirection(
@@ -508,7 +581,7 @@ export default function Home() {
         modelContext?: { registerTool: (t: Tool, options:{signal:AbortSignal}) => void|Promise<void> };
       }
     ).modelContext;
-    if (!context || !snapshotId) return;
+    if (!context || !snapshotId || !roleCatalog) return;
     const lifecycle=new AbortController();
     const register=(tool:Tool)=>{try{void Promise.resolve(context.registerTool(tool,{signal:lifecycle.signal})).catch(e=>console.warn('Browser tool registration failed',e));}catch(e){console.warn('Browser tool registration failed',e);}};
     register({
@@ -531,8 +604,8 @@ export default function Home() {
           throw new Error("Potential must be 1–200.");
         const nextFilters = { ...defaultFilters, q, paMin: String(pa) };
         const nextSort = resolveColumnSort(columnIds, 'pa', 'desc', '');
-        const nextQuery = playerQuery(nextFilters, nextSort.sort, nextSort.direction, 1, '50', displayedRoleIds);
-        const found = await api<Results>(`/snapshots/${snapshotId}/players?${nextQuery}`);
+        const nextQuery = playerSearchQuery(nextFilters, nextSort.sort, nextSort.direction, 1, '50', displayedRoleIds, displayBestRole, roleCatalog);
+        const found = await pageCache.load(nextQuery, api<Results>);
         if (lifecycle.signal.aborted) throw new Error('The active save or view changed.');
         flushSync(()=>{setFilters(nextFilters);setSort(nextSort.sort);setDirection(nextSort.direction);setPage(1);setLimit('50');setSearchResponse({key:resourceKey(snapshotId,nextQuery),value:found});});
         return found;
@@ -560,7 +633,7 @@ export default function Home() {
     return () => {
       lifecycle.abort();
     };
-  }, [snapshotId, displayedRoleIds, columnIds]);
+  }, [snapshotId, displayedRoleIds, columnIds, displayBestRole, roleCatalog, pageCache]);
 
   return (
     <main className="scout-app">
@@ -683,16 +756,8 @@ export default function Home() {
         </div>
       ))}
       <section className="search-layout">
-        <aside className="filters">
-          <div className="filter-heading">
-            <span className="section-heading">
-              <SlidersHorizontal size={14} /> FILTERS
-            </span>
-            <Button variant="ghost" size="sm" onClick={clearFilters} disabled={!activeFilters}>
-              Reset
-            </Button>
-          </div>
-          <fieldset disabled={!snapshot}>
+        <Collapsible className="filters" open={moreFiltersOpen} onOpenChange={setMoreFiltersOpen}>
+          <fieldset className="primary-filters" aria-label="Player filters" disabled={!snapshot}>
             <label htmlFor="player-query">
               Name or player ID
               <div className="search-input">
@@ -729,121 +794,124 @@ export default function Home() {
                 disabled={!snapshot}
               />
             </div>
-            <div className="filter-field">
-              <label htmlFor="position">Position</label>
-              <Choice
-                label="Position"
-                value={filters.position}
-                options={[
-                  { value: "", label: "All positions" },
-                  ...positions.map((p, i) => ({ value: String(i), label: p })),
-                ]}
-                onChange={(v) => updateFilter("position", v)}
-              />
-              <small>Accomplished or natural (15+)</small>
-            </div>
+            <PositionFilter positions={positions} value={selectedPositions(filters.position)}
+              match={positionMatchOf(filters.positionMatch)} disabled={!snapshot}
+              onChange={changePositions} />
             <div className="filter-field">
               <label htmlFor="role-and-duty">Role and duty</label>
               <Picker label="Role and duty" options={roleOptions} value={filters.role}
                 onChange={changeRole} placeholder="Choose a role" disabled={!snapshot || !roleCatalog} />
-              <small>Attribute fit across all positions</small>
             </div>
-            <div className="filter-field">
-              <label htmlFor="role-minimum">Minimum role rating / 100</label>
-              <Input id="role-minimum" type="number" min={0} max={100} step="0.1"
-                placeholder="Any rating" value={filters.roleMin} disabled={!filters.role}
-                onChange={e => updateFilter("roleMin", e.target.value)} />
-            </div>
-            {[
-              ["age", "Age", 120],
-              ["ca", "Current ability", 200],
-              ["pa", "Potential ability", 200],
-            ].map(([key, label, max]) => (
-              <div className="range-field" key={key}>
-                <span className="filter-label">{label}</span>
-                <div className="range-inputs">
-                  <Input
-                    aria-label={`${label} minimum`}
-                    type="number"
-                    min={0}
-                    max={max}
-                    placeholder="Min"
-                    value={filters[key + "Min"]}
-                    onChange={(e) => updateFilter(key + "Min", e.target.value)}
-                  />
-                  <span>–</span>
-                  <Input
-                    aria-label={`${label} maximum`}
-                    type="number"
-                    min={0}
-                    max={max}
-                    placeholder="Max"
-                    value={filters[key + "Max"]}
-                    onChange={(e) => updateFilter(key + "Max", e.target.value)}
-                  />
-                </div>
-              </div>
-            ))}
-            <div className="attribute-filter">
-              <div className="section-heading">MINIMUM ATTRIBUTES</div>
-              <Picker
-                label="Attribute to filter"
-                options={attrOptions}
-                value={attributeKey}
-                onChange={setAttributeKey}
-                placeholder="Choose an attribute"
-                disabled={!snapshot}
-              />
-              <div className="attribute-add">
-                <Input
-                  aria-label="Minimum attribute rating"
-                  type="number"
-                  min={1}
-                  max={20}
-                  value={attributeMin}
-                  onChange={(e) => setAttributeMin(e.target.value)}
-                />
-                <span className="muted">/ 20</span>
-                <Button
-                  variant="secondary"
-                  aria-label="Add attribute filter"
-                  disabled={
-                    !attributeKey ||
-                    !Number.isInteger(Number(attributeMin)) ||
-                    Number(attributeMin) < 1 ||
-                    Number(attributeMin) > 20
-                  }
-                  onClick={() => {
-                    updateFilter("attr_" + attributeKey, attributeMin);
-                    setAttributeKey("");
-                  }}
-                >
-                  <Plus size={15} />
-                  Add
-                </Button>
-              </div>
-              {attrFilters.map(([key, value]) => (
-                <div className="filter-chip" key={key}>
-                  <span>
-                    {attributes.find((a) => a.key === key.slice(5))?.label}{" "}
-                    <strong>≥ {value}</strong>
-                  </span>
-                  <Button
-                    size="icon-xs"
-                    variant="ghost"
-                    aria-label={`Remove ${attributes.find((a) => a.key === key.slice(5))?.label} filter`}
-                    onClick={() => updateFilter(key, "")}
-                  >
-                    <X size={13} />
-                  </Button>
-                </div>
-              ))}
+            <div className="filter-actions">
+              <CollapsibleTrigger render={<Button variant="outline" />}>
+                <SlidersHorizontal size={14} /> More filters
+                {advancedFilters > 0 && <span className="filter-count" aria-label={`${advancedFilters} active advanced filters`}>{advancedFilters}</span>}
+              </CollapsibleTrigger>
+              <Button variant="ghost" size="sm" onClick={clearFilters} disabled={!activeFilters}>Reset</Button>
             </div>
           </fieldset>
-          <p className="filter-note">
-            Selected filters work together. Attributes use 1–20; ability uses 1–200; role ratings are out of 100.
-          </p>
-        </aside>
+          <CollapsibleContent>
+            <fieldset className="advanced-filters" aria-label="More player filters" disabled={!snapshot}>
+              <div className="filter-field">
+                <label htmlFor="role-minimum">Minimum role rating / 100</label>
+                <Input id="role-minimum" type="number" min={0} max={100} step="0.1"
+                  placeholder="Any rating" value={filters.roleMin} disabled={!filters.role}
+                  onChange={e => updateFilter("roleMin", e.target.value)} />
+              </div>
+              {[
+                ["age", "Age", 120],
+                ["ca", "Current ability", 200],
+                ["pa", "Potential ability", 200],
+              ].map(([key, label, max]) => (
+                <div className="range-field" key={key}>
+                  <span className="filter-label">{label}</span>
+                  <div className="range-inputs">
+                    <Input
+                      aria-label={`${label} minimum`}
+                      type="number"
+                      min={0}
+                      max={max}
+                      placeholder="Min"
+                      value={filters[key + "Min"]}
+                      onChange={(e) => updateFilter(key + "Min", e.target.value)}
+                    />
+                    <span>–</span>
+                    <Input
+                      aria-label={`${label} maximum`}
+                      type="number"
+                      min={0}
+                      max={max}
+                      placeholder="Max"
+                      value={filters[key + "Max"]}
+                      onChange={(e) => updateFilter(key + "Max", e.target.value)}
+                    />
+                  </div>
+                </div>
+              ))}
+              <PositionMatching value={selectedPositions(filters.position)}
+                match={positionMatchOf(filters.positionMatch)} disabled={!snapshot}
+                onChange={changePositions} />
+              <div className="attribute-filter">
+                <div className="section-heading">MINIMUM ATTRIBUTES</div>
+                <Picker
+                  label="Attribute to filter"
+                  options={attrOptions}
+                  value={attributeKey}
+                  onChange={setAttributeKey}
+                  placeholder="Choose an attribute"
+                  disabled={!snapshot}
+                />
+                <div className="attribute-add">
+                  <Input
+                    aria-label="Minimum attribute rating"
+                    type="number"
+                    min={1}
+                    max={20}
+                    value={attributeMin}
+                    onChange={(e) => setAttributeMin(e.target.value)}
+                  />
+                  <span className="muted">/ 20</span>
+                  <Button
+                    variant="secondary"
+                    aria-label="Add attribute filter"
+                    disabled={
+                      !attributeKey ||
+                      !Number.isInteger(Number(attributeMin)) ||
+                      Number(attributeMin) < 1 ||
+                      Number(attributeMin) > 20
+                    }
+                    onClick={() => {
+                      updateFilter("attr_" + attributeKey, attributeMin);
+                      setAttributeKey("");
+                    }}
+                  >
+                    <Plus size={15} />
+                    Add
+                  </Button>
+                </div>
+                <div className="attribute-chips">{attrFilters.map(([key, value]) => (
+                  <div className="filter-chip" key={key}>
+                    <span>
+                      {attributes.find((a) => a.key === key.slice(5))?.label}{" "}
+                      <strong>≥ {value}</strong>
+                    </span>
+                    <Button
+                      size="icon-xs"
+                      variant="ghost"
+                      aria-label={`Remove ${attributes.find((a) => a.key === key.slice(5))?.label} filter`}
+                      onClick={() => updateFilter(key, "")}
+                    >
+                      <X size={13} />
+                    </Button>
+                  </div>
+                ))}</div>
+              </div>
+            </fieldset>
+            <p className="filter-note">
+              Selected filters work together. Attributes use 1–20; ability uses 1–200; role ratings are out of 100.
+            </p>
+          </CollapsibleContent>
+        </Collapsible>
         <div className="results">
           <div className="results-heading">
             <div>
@@ -855,14 +923,14 @@ export default function Home() {
                   ? `${snapshot.sourceName} · ${snapshot.playerCount.toLocaleString()} players indexed`
                   : "Choose a save to explore its player database"}
               </p>
-              {selectedRole && <p className="selected-role-caption">{roleLabel(selectedRole)} · SaveLens role rating / 100</p>}
+              {roleCatalog && <p className="selected-role-caption">{selectedRole ? `${roleLabel(selectedRole)} · ` : ''}{roleCatalog.systemName} · / 100</p>}
             </div>
             <div className="results-tools">
               <PlayerColumnChooser columns={availableColumns} selected={columnIds} onChange={changeColumns} disabled={!roleCatalog} />
               <output className="search-status">
-              {searching && (
+              {showSearchSpinner && (
                 <>
-                  <LoaderCircle className="spin" size={14} /> Searching
+                  <LoaderCircle className="spin" size={14} /> {searchMessage}
                 </>
               )}
               </output>
@@ -876,9 +944,10 @@ export default function Home() {
             <>
               <div className="player-table" aria-busy={searching}>
                 <PlayerListTable players={result?.players ?? []} columns={displayedColumns}
+                  roles={roleCatalog?.roles ?? []}
                   sort={visibleSort(sort, filters.role)} direction={direction} onSort={changeSort} onOpen={openPlayer} />
               </div>
-              {(!snapshot || !result?.players.length) && (
+              {(!snapshot || (result && !result.players.length) || showSearchSpinner) && (
                 <div className="empty-state">
                   {initializing || searching ? (
                     <LoaderCircle className="spin" size={30} />
@@ -891,7 +960,7 @@ export default function Home() {
                       : !snapshot
                         ? "Your next signing starts here"
                         : searching
-                          ? "Searching players…"
+                          ? searchMessage
                           : "No players match these filters"}
                   </h3>
                   <p>
@@ -973,14 +1042,7 @@ export default function Home() {
         <span>Save files are read only</span>
       </footer>
 
-      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent className="settings-dialog">
-          <DialogHeader>
-            <DialogTitle>Workspace settings</DialogTitle>
-            <DialogDescription>
-              Choose the folder containing your Football Manager 2024 saves.
-            </DialogDescription>
-          </DialogHeader>
+      <RatingSystemSettings open={settingsOpen} onOpenChange={setSettingsOpen} attributes={attributes} onCatalog={applyRoleCatalog}>
           <label className="settings-label" htmlFor="save-folder-path">
             Save folder
             <Input
@@ -1006,8 +1068,7 @@ export default function Home() {
             {savingFolder ? "Saving…" : "Save folder"}
           </Button>
           {running && <p className="muted">Wait for the current import before changing folders.</p>}
-        </DialogContent>
-      </Dialog>
+      </RatingSystemSettings>
       <Sheet
         open={detailId !== null}
         onOpenChange={(open) => {
@@ -1075,7 +1136,7 @@ export default function Home() {
                   <TabsTrigger value="roles">Role ratings</TabsTrigger>
                 </TabsList>
                 <TabsContent value="roles">
-                  <RoleRatings player={detail} roles={roleCatalog?.roles ?? []} attributes={attributes} initialRoleId={detailRole} />
+                  <RoleRatings key={systemKey} player={detail} roles={roleCatalog?.roles ?? []} attributes={attributes} initialRoleId={detailRole} systemName={roleCatalog?.systemName ?? ''} systemId={roleCatalog?.systemId ?? ''} />
                 </TabsContent>
                 <TabsContent value="attributes">
               <div className="attribute-groups">

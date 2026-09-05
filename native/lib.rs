@@ -1,4 +1,6 @@
+pub mod hybrid;
 pub mod parser;
+pub mod rating_systems;
 pub mod roles;
 pub mod service;
 pub mod storage;

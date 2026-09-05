@@ -6,6 +6,23 @@ export const roleLabel = (role: RoleDefinition) =>
 export const formatRoleScore = (score: number | null | undefined) =>
   score == null ? '—' : score.toFixed(1);
 
+// Internal role aliases can differ from the abbreviations displayed in FM24.
+const roleAbbreviations: Record<string, string> = {
+  gk: 'G',
+  anchor: 'A',
+  wtf: 'WT',
+  reg: 'RGA',
+  sv: 'VOL',
+  eng: 'EG',
+  lib: 'L',
+};
+
+export const roleAbbreviation = (role: RoleDefinition) =>
+  roleAbbreviations[role.role] ?? role.role.toUpperCase();
+
+export const formatBestRole = (score: number | null | undefined, role: RoleDefinition | undefined) =>
+  score == null || !role ? '—' : `${formatRoleScore(score)} (${roleAbbreviation(role)})`;
+
 export function selectRole(
   filters: Record<string, string>, sort: string, direction: string, role: string,
 ) {
@@ -19,11 +36,15 @@ export function selectRole(
 
 export function playerQuery(
   filters: Record<string, string>, sort: string, direction: string, page: number, limit: string,
-  roles: string[] = [],
+  roles: string[] = [], bestRole = false,
 ) {
   const params = new URLSearchParams({ sort, direction, page: String(page), limit });
-  for (const [key, value] of Object.entries(filters)) if (value) params.set(key, value);
+  for (const [key, value] of Object.entries(filters)) {
+    if (value && key !== 'positionMatch') params.set(key, value);
+  }
+  if (filters.position) params.set('positionMatch', filters.positionMatch || 'and');
   if (roles.length) params.set('roles', [...new Set(roles)].join(','));
+  if (bestRole) params.set('bestRole', '1');
   return params.toString();
 }
 
