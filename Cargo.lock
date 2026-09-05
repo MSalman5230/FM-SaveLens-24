@@ -915,7 +915,7 @@ dependencies = [
 
 [[package]]
 name = "fm-savelens-24"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "fm-savelens-backend",
  "open",
@@ -928,7 +928,7 @@ dependencies = [
 
 [[package]]
 name = "fm-savelens-backend"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "axum",
  "chrono",
