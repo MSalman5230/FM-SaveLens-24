@@ -84,3 +84,26 @@ test('cancelled debounced role search never issues a request', async () => {
   await new Promise(resolve => setTimeout(resolve, 20));
   assert.equal(requests, 0);
 });
+
+test('debounced role search runs once after the delay and delivers its result before settling', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const paths: string[] = [];
+  const seen: string[] = [];
+  const stop = requestSnapshot({
+    path: 'role=af-attack', delay: 200,
+    request: async path => { paths.push(path); return 'rating'; },
+    onValue: value => seen.push(value),
+    onError: () => seen.push('error'),
+    onSettled: () => seen.push('settled'),
+  });
+  t.after(stop);
+  t.mock.timers.tick(199);
+  assert.deepEqual(paths, []);
+  assert.deepEqual(seen, []);
+  t.mock.timers.tick(1);
+  await setImmediate();
+  assert.deepEqual(paths, ['role=af-attack']);
+  assert.deepEqual(seen, ['rating', 'settled']);
+  t.mock.timers.tick(1000);
+  assert.equal(paths.length, 1);
+});

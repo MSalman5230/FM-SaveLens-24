@@ -374,9 +374,51 @@ pub fn search(db: &Connection, query: &str) -> Result<Value> {
                 Ok((row.get::<_, u32>(0)?, Value::Object(values)))
             })?
             .collect::<std::result::Result<HashMap<_, _>, _>>()?;
-        for player in &mut players {
-            player["roleScores"] = by_player[&(player["id"].as_u64().unwrap() as u32)].clone();
-        }
+        attach_role_scores(&mut players, &by_player, &displayed_roles);
     }
     Ok(json!({"total":total,"page":page,"limit":limit,"players":players}))
+}
+
+fn attach_role_scores(
+    players: &mut [Value],
+    by_player: &HashMap<u32, Value>,
+    displayed_roles: &[&crate::roles::Role],
+) {
+    for player in players {
+        let id = player["id"].as_u64().unwrap() as u32;
+        player["roleScores"] = by_player.get(&id).cloned().unwrap_or_else(|| {
+            Value::Object(
+                displayed_roles
+                    .iter()
+                    .map(|role| (role.id.clone(), Value::Null))
+                    .collect(),
+            )
+        });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn missing_role_score_rows_preserve_players_and_return_null_for_every_requested_role() {
+        let roles = [
+            crate::roles::find("af-attack").unwrap(),
+            crate::roles::find("tf-support").unwrap(),
+        ];
+        let scores = json!({"af-attack": 78.54321, "tf-support": null});
+        let by_player = HashMap::from([(7, scores.clone())]);
+        let mut players = vec![json!({"id": 8, "name": "Missing"}), json!({"id": 7})];
+
+        attach_role_scores(&mut players, &by_player, &roles);
+
+        assert_eq!(
+            players,
+            vec![
+                json!({"id": 8, "name": "Missing", "roleScores": {"af-attack": null, "tf-support": null}}),
+                json!({"id": 7, "roleScores": scores}),
+            ]
+        );
+    }
 }

@@ -4,6 +4,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{collections::HashSet, sync::LazyLock};
 
+const KEY_WEIGHT: u8 = 2;
+const PREFERABLE_WEIGHT: u8 = 1;
+
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Role {
@@ -52,8 +55,8 @@ pub fn validate(catalog: &RoleCatalog) -> Result<()> {
     let mut ids = HashSet::new();
     let mut identities = HashSet::new();
     if catalog.roles.len() != 85
-        || catalog.key_weight != 2
-        || catalog.preferable_weight != 1
+        || catalog.key_weight != KEY_WEIGHT
+        || catalog.preferable_weight != PREFERABLE_WEIGHT
         || catalog.scale != 100
     {
         return Err(Error::query("Invalid role catalog or scoring model."));
@@ -97,16 +100,17 @@ impl Role {
     fn weighted_attributes(&self) -> impl Iterator<Item = (&str, u8)> {
         self.key_attributes
             .iter()
-            .map(|key| (key.as_str(), 2))
+            .map(|key| (key.as_str(), KEY_WEIGHT))
             .chain(
                 self.preferable_attributes
                     .iter()
-                    .map(|key| (key.as_str(), 1)),
+                    .map(|key| (key.as_str(), PREFERABLE_WEIGHT)),
             )
     }
 
     fn denominator(&self) -> usize {
-        2 * self.key_attributes.len() + self.preferable_attributes.len()
+        usize::from(KEY_WEIGHT) * self.key_attributes.len()
+            + usize::from(PREFERABLE_WEIGHT) * self.preferable_attributes.len()
     }
 
     pub fn rate(&self, attributes: &Value) -> RoleRating {

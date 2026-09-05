@@ -1355,6 +1355,9 @@ h2 {
   z-index: 1;
   background: #192123;
 }
+.results .player-row:hover td.player-column-name {
+  background: #26352e;
+}
 .results th.player-column-name {
   left: 0;
   z-index: 2;

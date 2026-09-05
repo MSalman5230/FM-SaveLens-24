@@ -330,10 +330,10 @@ export default function Home() {
   // Remote request state must reset whenever a new search starts.
   // oxlint-disable-next-line react/react-compiler
   useEffect(() => {
-    if (!snapshotId) return;
     // oxlint-disable-next-line react/react-compiler -- reset state for this remote request
-    setSearching(true);
+    setSearching(Boolean(snapshotId));
     setSearchError("");
+    if (!snapshotId) return;
     return requestSnapshot<Results>({
       path: `/snapshots/${snapshotId}/players?${query}`, request: api, delay: 200,
       onValue: value => setSearchResponse({ key: searchKey, value }),
@@ -1068,7 +1068,7 @@ export default function Home() {
                     ),
                 )}
               </div>
-              <Tabs key={detailKey} defaultValue={detailRole ? "roles" : "attributes"} className="profile-tabs">
+              <Tabs key={JSON.stringify([detailKey, detailRole])} defaultValue={detailRole ? "roles" : "attributes"} className="profile-tabs">
                 <TabsList aria-label="Player information">
                   <TabsTrigger value="attributes">Attributes</TabsTrigger>
                   <TabsTrigger value="roles">Role ratings</TabsTrigger>
