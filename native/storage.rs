@@ -178,7 +178,7 @@ pub fn player_with_system(
     detail["roleRatings"] = json!(system
         .roles
         .iter()
-        .map(|role| role.rate(&detail["attributes"]))
+        .map(|role| system.rate_role(role, &detail["attributes"]))
         .collect::<Vec<_>>());
     system.tag(&mut detail);
     Ok(detail)

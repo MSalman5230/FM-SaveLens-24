@@ -2,6 +2,17 @@ import type { Attribute, RatingIdentity, RatingSystem, RoleCatalog, RoleDefiniti
 import { normalizeColumns, playerColumns, resolveColumnSort } from './player-columns.ts';
 
 export const builtinSystemId = 'role-highlighted-rating';
+export const hybridSystemId = 'fm-arena-hybrid-rating';
+export const hybridEvidenceUrl = 'https://fm-arena.com/thread/14009-attribute-testing-football-manager-24/';
+export const ratingModel = (systemId: string) => systemId === builtinSystemId ? 'highlighted' : systemId === hybridSystemId ? 'hybrid' : 'custom';
+export const ratingModelNote = (systemId: string) => {
+  switch (ratingModel(systemId)) {
+    case 'highlighted': return 'Key attributes count twice; preferable attributes count once.';
+    case 'hybrid': return '70% role-adjusted testing + 30% highlighted role fit. Testing weights receive a ×1.5 boost for key attributes, ×1.25 for preferable attributes, and ×1 otherwise.';
+    default: return 'Ratings use your saved attribute weights.';
+  }
+};
+export const ratingSystemLabel = (system: Pick<RatingSystem, 'name' | 'builtIn'>) => `${system.name} · ${system.builtIn ? 'Built-in' : 'Custom'}`;
 export const weightGroups = ['Technical', 'Mental', 'Physical', 'Goalkeeping', 'Feet', 'Consistency'];
 export const weightGroup = (attribute: Attribute) => attribute.key === 'consistency' ? 'Consistency' : attribute.group;
 export const weightAttributes = (attributes: Attribute[]) => attributes.filter(attribute =>

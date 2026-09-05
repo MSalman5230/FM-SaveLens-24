@@ -8,7 +8,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Combobox, ComboboxInput, ComboboxContent, ComboboxList, ComboboxItem, ComboboxEmpty } from '@/components/ui/combobox';
 import { api, type Attribute, type RatingSystem, type RatingSystems, type RoleCatalog, type RoleDefinition } from '@/lib/scout-api';
-import { editRole, parseWeights, roleWeights, weightAttributes, weightDraft, weightGroup, weightGroups } from '@/lib/rating-systems';
+import { editRole, hybridEvidenceUrl, hybridSystemId, parseWeights, ratingModelNote, ratingSystemLabel, roleWeights, weightAttributes, weightDraft, weightGroup, weightGroups } from '@/lib/rating-systems';
 import { roleLabel } from '@/lib/role-ratings';
 
 type Intent = { kind: 'close' | 'tab' | 'system' | 'role' | 'new' | 'deleteSystem' | 'deleteRole'; value?: string };
@@ -178,11 +178,11 @@ export function RatingSystemSettings({ open, onOpenChange, attributes, onCatalog
           <TabsContent value="ratings" className="rating-settings">
             <div className="rating-system-toolbar">
               <label className="rating-field" htmlFor="rating-system-picker">Rating system
-                <Select items={(library?.systems ?? []).map(item => ({ value: item.id, label: item.name }))} value={system?.id ?? ''}
+                <Select items={(library?.systems ?? []).map(item => ({ value: item.id, label: ratingSystemLabel(item) }))} value={system?.id ?? ''}
                   onValueChange={id => { if (id && id !== system?.id) leave({ kind: 'system', value: id }); }} disabled={busy}>
                   <SelectTrigger id="rating-system-picker" aria-label="Rating system"><SelectValue /></SelectTrigger>
                   <SelectContent alignItemWithTrigger={false}>{library?.systems.map(item =>
-                    <SelectItem key={item.id} value={item.id}>{item.name}{item.id === library.activeSystemId ? ' · Active' : ''}</SelectItem>)}</SelectContent>
+                    <SelectItem key={item.id} value={item.id}>{ratingSystemLabel(item)}{item.id === library.activeSystemId ? ' · Active' : ''}</SelectItem>)}</SelectContent>
                 </Select>
               </label>
               <Button variant="outline" disabled={busy || !system} onClick={() => leave({ kind: 'new' })}>New system</Button>
@@ -192,7 +192,8 @@ export function RatingSystemSettings({ open, onOpenChange, attributes, onCatalog
               })}>{system?.id === library?.activeSystemId ? 'Active system' : 'Use system'}</Button>
             </div>
             {system && <>
-              {system.builtIn && <p className="muted">Built-in preset · Key ×2, Preferable ×1. Choose New system to customize a copy.</p>}
+              {system.builtIn && <p className="muted">Built-in preset · {ratingModelNote(system.id)} Choose New system to customize a copy.</p>}
+              {system.id === hybridSystemId && <p className="muted">An evidence-informed performance index. Goalkeepers use separate GK evidence; Consistency contributes for outfield players. Position familiarity, set-piece taking, feet, morale, and condition are separate. <a href={hybridEvidenceUrl} target="_blank" rel="noreferrer">Research and methodology</a>.</p>}
               <label className="rating-field" htmlFor="rating-system-name">System name<Input id="rating-system-name" value={systemName} maxLength={100} disabled={busy || system.builtIn} onChange={event => setSystemName(event.target.value)} /></label>
               <div className="rating-editor-header">
                 <label className="rating-field" htmlFor="rating-role-picker">Role and duty
@@ -213,7 +214,7 @@ export function RatingSystemSettings({ open, onOpenChange, attributes, onCatalog
                   const share = Number(value) >= 0 && total > 0 && Number.isFinite(total) ? Number(value) / total * 100 : 0;
                   return <div className="weight-row" key={attribute.key}>
                     <label htmlFor={`weight-${attribute.key}`}>{attribute.label}</label>
-                    <Input id={`weight-${attribute.key}`} aria-label={`${attribute.label} weight`} type="number" min="0" step="any" value={value}
+                    <Input id={`weight-${attribute.key}`} aria-label={`${attribute.label} weight`} type="number" min="0" step="any" value={system.id === hybridSystemId ? Number(value).toFixed(4) : value}
                       disabled={busy || system.builtIn} onChange={event => setWeights(previous => ({ ...previous, [attribute.key]: event.target.value }))} />
                     <span>{Number.isFinite(share) ? share.toFixed(1) : '—'}%</span>
                   </div>;

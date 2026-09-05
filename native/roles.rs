@@ -47,6 +47,15 @@ pub struct RoleRating {
     pub score: Option<f64>,
     // Includes missing and invalid values. Never silently reweight partial data.
     pub missing_attributes: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub components: Option<RatingComponents>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RatingComponents {
+    pub testing_score: f64,
+    pub role_score: f64,
 }
 
 pub static ROLES: LazyLock<RoleCatalog> = LazyLock::new(|| {
@@ -144,6 +153,7 @@ impl Role {
                 .is_empty()
                 .then(|| 5.0 * total / self.denominator()),
             missing_attributes,
+            components: None,
         }
     }
 

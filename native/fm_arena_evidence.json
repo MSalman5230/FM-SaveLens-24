@@ -1,0 +1,432 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "id": "fm-arena-fm24-attributes",
+    "title": "FM-Arena: Attribute Testing - Football Manager 24",
+    "url": "https://fm-arena.com/thread/14009-attribute-testing-football-manager-24/",
+    "published": "2025-01-05",
+    "updated": "2025-01-12",
+    "accessed": "2026-09-06"
+  },
+  "notes": [
+    "Figures are the first post's reported changes per 38-match season, not predicted individual-player effects.",
+    "Outfield experiments changed the attribute for all outfield players together. Goalkeeper results are separate.",
+    "Zero records transcribe 'does not make any difference'; absent attributes have no reported result here.",
+    "The author reports approximately 9,000 matches per attribute and remaining noise around +/-1.5 points on page 3; no formal confidence intervals are supplied.",
+    "Set-piece taking results are archived for provenance but excluded from this general-purpose rating."
+  ],
+  "outfield": {
+    "pace": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 64,
+      "goalsFor": 45,
+      "goalsAgainst": -59
+    },
+    "acceleration": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 64,
+      "goalsFor": 49,
+      "goalsAgainst": -48
+    },
+    "stamina": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 19,
+      "goalsFor": 9,
+      "goalsAgainst": -16
+    },
+    "jumpingReach": {
+      "status": "tested",
+      "from": 8,
+      "to": 17,
+      "points": 16,
+      "goalsFor": 14,
+      "goalsAgainst": -8
+    },
+    "balance": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 13,
+      "goalsFor": 10,
+      "goalsAgainst": -8
+    },
+    "strength": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 10,
+      "goalsFor": 7,
+      "goalsAgainst": -5
+    },
+    "agility": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 8,
+      "goalsFor": 6,
+      "goalsAgainst": -6
+    },
+    "naturalFitness": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 2,
+      "goalsFor": 2,
+      "goalsAgainst": -2
+    },
+    "anticipation": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 18,
+      "goalsFor": 15,
+      "goalsAgainst": -10
+    },
+    "workRate": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 12,
+      "goalsFor": 6,
+      "goalsAgainst": -10
+    },
+    "concentration": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 9,
+      "goalsFor": 4,
+      "goalsAgainst": -8
+    },
+    "determination": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 6,
+      "goalsFor": 4,
+      "goalsAgainst": -5
+    },
+    "decisions": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 1,
+      "goalsFor": 2,
+      "goalsAgainst": 0
+    },
+    "composure": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 1,
+      "goalsFor": 2,
+      "goalsAgainst": 0
+    },
+    "aggression": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 0,
+      "goalsFor": 0,
+      "goalsAgainst": 0
+    },
+    "bravery": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 0,
+      "goalsFor": 0,
+      "goalsAgainst": 0
+    },
+    "flair": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 0,
+      "goalsFor": 0,
+      "goalsAgainst": 0
+    },
+    "teamwork": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 0,
+      "goalsFor": 0,
+      "goalsAgainst": 0
+    },
+    "vision": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 0,
+      "goalsFor": 0,
+      "goalsAgainst": 0
+    },
+    "offTheBall": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 0,
+      "goalsFor": 0,
+      "goalsAgainst": 0
+    },
+    "positioning": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 0,
+      "goalsFor": 0,
+      "goalsAgainst": 0
+    },
+    "leadership": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 0,
+      "goalsFor": 0,
+      "goalsAgainst": 0
+    },
+    "dribbling": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 19,
+      "goalsFor": 25,
+      "goalsAgainst": -3
+    },
+    "finishing": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 8,
+      "goalsFor": 8,
+      "goalsAgainst": -1
+    },
+    "longShots": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 6,
+      "goalsFor": 7,
+      "goalsAgainst": 0
+    },
+    "heading": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 5,
+      "goalsFor": 5,
+      "goalsAgainst": -1
+    },
+    "crossing": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 4,
+      "goalsFor": 5,
+      "goalsAgainst": 0
+    },
+    "firstTouch": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 3,
+      "goalsFor": 2,
+      "goalsAgainst": -2
+    },
+    "passing": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 2,
+      "goalsFor": 4,
+      "goalsAgainst": 0
+    },
+    "technique": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 1,
+      "goalsFor": 2,
+      "goalsAgainst": 0
+    },
+    "tackling": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 1,
+      "goalsFor": 0,
+      "goalsAgainst": -2
+    },
+    "marking": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 0,
+      "goalsFor": 0,
+      "goalsAgainst": 0
+    },
+    "consistency": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 10,
+      "goalsFor": 8,
+      "goalsAgainst": -8
+    }
+  },
+  "goalkeeper": {
+    "reflexes": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 8,
+      "goalsFor": 0,
+      "goalsAgainst": -10
+    },
+    "agility": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 6,
+      "goalsFor": 0,
+      "goalsAgainst": -8
+    },
+    "acceleration": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 2,
+      "goalsFor": 0,
+      "goalsAgainst": -3
+    },
+    "oneOnOnes": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 0.3,
+      "goalsFor": 0,
+      "goalsAgainst": -1
+    },
+    "aerialReach": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 0.1,
+      "goalsFor": 0,
+      "goalsAgainst": -0.25
+    },
+    "commandOfArea": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 0.1,
+      "goalsFor": 0,
+      "goalsAgainst": -0.25
+    },
+    "communication": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 0.1,
+      "goalsFor": 0,
+      "goalsAgainst": -0.25
+    },
+    "handling": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 0.1,
+      "goalsFor": 0,
+      "goalsAgainst": -0.25
+    },
+    "anticipation": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 0.1,
+      "goalsFor": 0,
+      "goalsAgainst": -0.25
+    },
+    "concentration": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 0.1,
+      "goalsFor": 0,
+      "goalsAgainst": -0.25
+    },
+    "positioning": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 0.1,
+      "goalsFor": 0,
+      "goalsAgainst": -0.25
+    },
+    "pace": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 0,
+      "goalsFor": 0,
+      "goalsAgainst": 0
+    },
+    "consistency": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 0,
+      "goalsFor": 0,
+      "goalsAgainst": 0
+    },
+    "rushingOut": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 0,
+      "goalsFor": 0,
+      "goalsAgainst": 0
+    }
+  },
+  "setPieces": {
+    "corners": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 0.5,
+      "goalsFor": 1,
+      "goalsAgainst": 0
+    },
+    "freeKickTaking": {
+      "status": "tested",
+      "from": 8,
+      "to": 20,
+      "points": 0.5,
+      "goalsFor": 1,
+      "goalsAgainst": 0
+    },
+    "penaltyTaking": {
+      "status": "untested",
+      "from": null,
+      "to": null,
+      "points": null,
+      "goalsFor": null,
+      "goalsAgainst": null
+    },
+    "longThrows": {
+      "status": "untested",
+      "from": null,
+      "to": null,
+      "points": null,
+      "goalsFor": null,
+      "goalsAgainst": null
+    }
+  }
+}

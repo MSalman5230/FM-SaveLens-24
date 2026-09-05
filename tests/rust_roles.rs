@@ -306,6 +306,36 @@ async fn player_api_uses_active_identity_and_rejects_stale_system_requests() {
         .json()
         .await
         .unwrap();
+    let hybrid_id = fm_savelens_backend::hybrid::SYSTEM_ID;
+    client
+        .put(format!("{url}/api/rating-systems/active"))
+        .json(&json!({"systemId":hybrid_id}))
+        .send()
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap();
+    let hybrid_detail: Value = client
+        .get(format!("{url}/api/snapshots/{snapshot_id}/players/1"))
+        .send()
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(hybrid_detail["systemId"], hybrid_id);
+    for rating in hybrid_detail["roleRatings"].as_array().unwrap() {
+        near(
+            rating["score"].as_f64().unwrap(),
+            0.70 * rating["components"]["testingScore"].as_f64().unwrap()
+                + 0.30 * rating["components"]["roleScore"].as_f64().unwrap(),
+        );
+    }
+    let stale_url =
+        format!("{url}/api/snapshots/{snapshot_id}/players?systemId={BUILTIN_ID}&systemRevision=1");
+    assert_eq!(client.get(stale_url).send().await.unwrap().status(), 409);
     client
         .put(format!("{url}/api/rating-systems/active"))
         .json(&json!({"systemId":created["id"]}))
@@ -341,6 +371,98 @@ async fn player_api_uses_active_identity_and_rejects_stale_system_requests() {
         }
     }
     server.shutdown().await.unwrap();
+}
+
+#[test]
+fn all_hybrid_roles_match_sql_with_nulls_filters_sorting_and_pagination() {
+    use fm_savelens_backend::rating_systems::HYBRID;
+    let (_dir, path) = snapshot();
+    let writer = Connection::open(&path).unwrap();
+    writer.execute("UPDATE players SET attr_consistency=NULL, detail=json_remove(detail,'$.attributes.consistency') WHERE id=1", []).unwrap();
+    drop(writer);
+    let before = fs::read(&path).unwrap();
+    let db = storage::open_snapshot(&path).unwrap();
+    let players = storage::search_with_system(&db, "limit=250", &HYBRID).unwrap();
+    let details: std::collections::HashMap<u32, Value> = players["players"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|row| {
+            let id = row["id"].as_u64().unwrap() as u32;
+            (id, storage::player_with_system(&db, id, &HYBRID).unwrap())
+        })
+        .collect();
+    for role in &HYBRID.roles {
+        for direction in ["asc", "desc"] {
+            let query = format!(
+                "role={}&roles={},af-attack&sort=role:{}&direction={direction}",
+                role.id, role.id, role.id
+            );
+            let results =
+                storage::search_with_system(&db, &format!("{query}&limit=250"), &HYBRID).unwrap();
+            assert_eq!(results["systemId"], HYBRID.id);
+            let rows = results["players"].as_array().unwrap();
+            let mut scores = vec![];
+            let mut seen_null = false;
+            for row in rows {
+                let detail = &details[&(row["id"].as_u64().unwrap() as u32)];
+                let rating = detail["roleRatings"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|r| r["roleId"] == role.id)
+                    .unwrap();
+                assert_eq!(row["roleRating"], row["roleScores"][&role.id]);
+                if let Some(score) = row["roleRating"].as_f64() {
+                    assert!(!seen_null);
+                    near(score, rating["score"].as_f64().unwrap());
+                    near(
+                        score,
+                        0.7 * rating["components"]["testingScore"].as_f64().unwrap()
+                            + 0.3 * rating["components"]["roleScore"].as_f64().unwrap(),
+                    );
+                    scores.push(score);
+                } else {
+                    seen_null = true;
+                    assert_eq!(row["id"], 1);
+                    assert!(rating["score"].is_null() && rating.get("components").is_none());
+                    assert_eq!(rating["missingAttributes"], json!(["consistency"]));
+                }
+            }
+            assert_eq!(seen_null, role.group != "Goalkeepers");
+            for pair in scores.windows(2) {
+                assert!(if direction == "asc" {
+                    pair[0] <= pair[1]
+                } else {
+                    pair[0] >= pair[1]
+                });
+            }
+            if matches!(role.id.as_str(), "cd-defend" | "gk-defend") {
+                let threshold = scores[12];
+                let filtered = storage::search_with_system(
+                    &db,
+                    &format!("{query}&roleMin={threshold}&limit=250"),
+                    &HYBRID,
+                )
+                .unwrap();
+                assert_eq!(
+                    filtered["total"],
+                    scores.iter().filter(|score| **score >= threshold).count()
+                );
+                for (page, expected) in rows.chunks(7).enumerate() {
+                    let paged = storage::search_with_system(
+                        &db,
+                        &format!("{query}&limit=7&page={}", page + 1),
+                        &HYBRID,
+                    )
+                    .unwrap();
+                    assert_eq!(paged["players"].as_array().unwrap(), expected);
+                }
+            }
+        }
+    }
+    drop(db);
+    assert_eq!(before, fs::read(path).unwrap());
 }
 
 #[test]

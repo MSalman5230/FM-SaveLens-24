@@ -3,12 +3,37 @@ import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { setImmediate } from 'node:timers/promises';
 import type { Attribute, RoleCatalog, RatingSystem } from '../../web/lib/scout-api.ts';
-import { builtinSystemId, editRole, parseWeights, ratingIdentity, ratingParams, reconcileRatingView, roleWeights, sameRatingSystem, weightAttributes, weightDraft } from '../../web/lib/rating-systems.ts';
+import { builtinSystemId, hybridSystemId, editRole, parseWeights, ratingIdentity, ratingModel, ratingModelNote, ratingParams, ratingSystemLabel, reconcileRatingView, roleWeights, sameRatingSystem, weightAttributes, weightDraft } from '../../web/lib/rating-systems.ts';
 import { currentValue, requestSnapshot, resourceKey } from '../../web/lib/snapshot-request.ts';
 
 const catalog = { ...JSON.parse(readFileSync(new URL('../../native/roles.json', import.meta.url), 'utf8')), systemId: builtinSystemId, systemName: 'Role Highlighted Rating', systemRevision: 1, builtIn: true } as RoleCatalog;
 const attributes = JSON.parse(readFileSync(new URL('../../native/parser/attributes.json', import.meta.url), 'utf8')).attributes as Attribute[];
 const system: RatingSystem = { id: 'test-system', name: 'Custom', revision: 1, builtIn: false, roles: catalog.roles };
+
+test('hybrid presentation uses system identity and distinguishes legacy name collisions', () => {
+  assert.equal(ratingModel(builtinSystemId), 'highlighted');
+  assert.equal(ratingModel(hybridSystemId), 'hybrid');
+  assert.equal(ratingModel('custom-copy'), 'custom');
+  assert.match(ratingModelNote(hybridSystemId), /70%.*30%/);
+  assert.match(ratingModelNote(hybridSystemId), /×1\.5.*×1\.25/);
+  assert.match(ratingModelNote(builtinSystemId), /twice/);
+  assert.match(ratingModelNote('custom-copy'), /saved attribute weights/);
+  assert.notEqual(ratingSystemLabel({ name: 'FM-Arena Hybrid Rating', builtIn: true }),
+    ratingSystemLabel({ name: 'FM-Arena Hybrid Rating', builtIn: false }));
+});
+
+test('switching to hybrid retains role filters and columns but invalidates old results', () => {
+  const hybrid = { ...catalog, systemId: hybridSystemId, systemName: 'FM-Arena Hybrid Rating', modelVersion: 'fm-arena-hybrid-v1' };
+  const filters = { role: 'cd-defend', roleMin: '70', q: 'Ali' };
+  const view = reconcileRatingView(hybrid, filters, ['name', 'role:cd-defend', 'role:gk-defend'], 'role:cd-defend', 'desc');
+  assert.deepEqual(view.filters, filters);
+  assert.deepEqual(view.columnIds, ['name', 'role:cd-defend', 'role:gk-defend']);
+  assert.equal(view.sort, 'role:cd-defend');
+  assert.equal(sameRatingSystem(catalog, hybrid), false);
+  const cached = { key: resourceKey('save', ratingIdentity(catalog)), value: { score: 75 } };
+  assert.equal(currentValue(cached, resourceKey('save', ratingIdentity(hybrid))), null);
+  assert.equal(new URLSearchParams(ratingParams(hybrid)).get('systemId'), hybridSystemId);
+});
 
 test('editable attributes include both feet and only Consistency from hidden attributes', () => {
   const keys = weightAttributes(attributes).map(attribute => attribute.key);

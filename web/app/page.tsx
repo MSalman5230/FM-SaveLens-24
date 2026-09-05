@@ -1104,7 +1104,7 @@ export default function Home() {
                   <TabsTrigger value="roles">Role ratings</TabsTrigger>
                 </TabsList>
                 <TabsContent value="roles">
-                  <RoleRatings key={systemKey} player={detail} roles={roleCatalog?.roles ?? []} attributes={attributes} initialRoleId={detailRole} systemName={roleCatalog?.systemName ?? ''} builtIn={roleCatalog?.builtIn ?? true} />
+                  <RoleRatings key={systemKey} player={detail} roles={roleCatalog?.roles ?? []} attributes={attributes} initialRoleId={detailRole} systemName={roleCatalog?.systemName ?? ''} systemId={roleCatalog?.systemId ?? ''} />
                 </TabsContent>
                 <TabsContent value="attributes">
               <div className="attribute-groups">

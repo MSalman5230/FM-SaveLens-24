@@ -170,6 +170,70 @@ async fn request(
 }
 
 #[tokio::test]
+async fn hybrid_api_lists_protects_activates_and_copies_the_new_preset() {
+    use fm_savelens_backend::{hybrid, rating_systems::HYBRID};
+    const GET: reqwest::Method = reqwest::Method::GET;
+    const POST: reqwest::Method = reqwest::Method::POST;
+    const PUT: reqwest::Method = reqwest::Method::PUT;
+    const DELETE: reqwest::Method = reqwest::Method::DELETE;
+    let dir = tempfile::tempdir().unwrap();
+    let server = service::start(0, dir.path()).await.unwrap();
+    let client = reqwest::Client::new();
+    let url = server.url();
+    let endpoint = format!("/rating-systems/{}", hybrid::SYSTEM_ID);
+    let definition = request(&client, &url, GET, &endpoint, None, 200).await;
+    assert_eq!(definition["roles"].as_array().unwrap().len(), 85);
+    assert_eq!(definition["builtIn"], true);
+    request(
+        &client,
+        &url,
+        PUT,
+        &endpoint,
+        Some(json!({"name":"Changed","revision":1})),
+        400,
+    )
+    .await;
+    request(&client, &url, DELETE, &endpoint, None, 400).await;
+    let active = request(
+        &client,
+        &url,
+        PUT,
+        "/rating-systems/active",
+        Some(json!({"systemId":hybrid::SYSTEM_ID})),
+        200,
+    )
+    .await;
+    assert_eq!(active["catalog"]["modelVersion"], hybrid::MODEL_VERSION);
+    assert!(active["catalog"].get("keyWeight").is_none());
+    assert_eq!(
+        request(&client, &url, GET, "/roles", None, 200).await,
+        HYBRID.catalog()
+    );
+    let copy = request(
+        &client,
+        &url,
+        POST,
+        "/rating-systems",
+        Some(json!({"name":"Hybrid copy","sourceId":hybrid::SYSTEM_ID})),
+        201,
+    )
+    .await;
+    assert_eq!(copy["roles"], definition["roles"]);
+    assert_eq!(copy["builtIn"], false);
+    assert_eq!(
+        request(&client, &url, GET, "/rating-systems", None, 200).await["activeSystemId"],
+        hybrid::SYSTEM_ID
+    );
+    server.shutdown().await.unwrap();
+    let server = service::start(0, dir.path()).await.unwrap();
+    assert_eq!(
+        request(&client, &server.url(), GET, "/roles", None, 200).await["systemId"],
+        hybrid::SYSTEM_ID
+    );
+    server.shutdown().await.unwrap();
+}
+
+#[tokio::test]
 async fn api_handles_complete_catalogs_conflicts_restart_and_atomic_write_failures() {
     const GET: reqwest::Method = reqwest::Method::GET;
     const POST: reqwest::Method = reqwest::Method::POST;
@@ -199,7 +263,7 @@ async fn api_handles_complete_catalogs_conflicts_restart_and_atomic_write_failur
             .as_array()
             .unwrap()
             .len(),
-        1
+        2
     );
     fs::remove_dir(&path).unwrap();
     let mut roles = BUILTIN.roles.clone();

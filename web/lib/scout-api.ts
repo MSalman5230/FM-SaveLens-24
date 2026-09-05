@@ -70,6 +70,7 @@ export type RoleRating = {
   roleId: string;
   score: number | null;
   missingAttributes: string[];
+  components?: { testingScore: number; roleScore: number };
 };
 export type RoleCatalog = RatingIdentity & {
   systemName: string;

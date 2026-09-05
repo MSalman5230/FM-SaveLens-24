@@ -1,7 +1,8 @@
 //! Workspace-owned rating definitions. Snapshot data is never rewritten.
 use crate::{
+    hybrid,
     parser::CATALOG,
-    roles::{Role, ROLES},
+    roles::{RatingComponents, Role, RoleRating, ROLES},
     Error, Result,
 };
 use serde::{Deserialize, Serialize};
@@ -39,6 +40,22 @@ pub static BUILTIN: LazyLock<RatingSystem> = LazyLock::new(|| RatingSystem {
         })
         .collect(),
 });
+
+pub static HYBRID: LazyLock<RatingSystem> = LazyLock::new(|| {
+    let mut roles = hybrid::combined_roles();
+    validate_roles(&mut roles).expect("valid hybrid role weights");
+    RatingSystem {
+        id: hybrid::SYSTEM_ID.into(),
+        name: "FM-Arena Hybrid Rating".into(),
+        revision: 1,
+        built_in: true,
+        roles,
+    }
+});
+
+pub fn builtins() -> [&'static RatingSystem; 2] {
+    [&BUILTIN, &HYBRID]
+}
 
 pub fn allowed_attribute(key: &str) -> bool {
     CATALOG.attributes.iter().any(|attribute| {
@@ -134,12 +151,37 @@ impl RatingSystem {
         catalog["systemName"] = json!(self.name);
         catalog["systemRevision"] = json!(self.revision);
         catalog["builtIn"] = json!(self.built_in);
-        if !self.built_in {
+        if self.id != BUILTIN_ID {
             catalog["modelVersion"] = json!("attribute-weights-v1");
             catalog.as_object_mut().unwrap().remove("keyWeight");
             catalog.as_object_mut().unwrap().remove("preferableWeight");
         }
+        if self.id == hybrid::SYSTEM_ID {
+            catalog["modelVersion"] = json!(hybrid::MODEL_VERSION);
+            catalog["sources"]
+                .as_array_mut()
+                .unwrap()
+                .push(hybrid::EVIDENCE.source.clone());
+        }
         catalog
+    }
+
+    pub fn rate_role(&self, role: &Role, attributes: &Value) -> RoleRating {
+        let mut rating = role.rate(attributes);
+        if self.id == hybrid::SYSTEM_ID && rating.score.is_some() {
+            let testing = hybrid::TESTING_ROLES[&role.id].rate(attributes);
+            let highlighted = ROLES
+                .roles
+                .iter()
+                .find(|source| source.id == role.id)
+                .unwrap()
+                .rate(attributes);
+            rating.components = Some(RatingComponents {
+                testing_score: testing.score.expect("complete hybrid attributes"),
+                role_score: highlighted.score.expect("complete highlighted attributes"),
+            });
+        }
+        rating
     }
 
     pub fn tag(&self, value: &mut Value) {
@@ -204,8 +246,8 @@ impl RatingStore {
     }
 
     pub fn find(&self, id: &str) -> Result<&RatingSystem> {
-        if id == BUILTIN_ID {
-            return Ok(&BUILTIN);
+        if let Some(system) = builtins().into_iter().find(|system| system.id == id) {
+            return Ok(system);
         }
         self.systems
             .iter()
@@ -220,7 +262,7 @@ impl RatingStore {
 
     pub fn list(&self) -> Value {
         json!({"activeSystemId": self.active_system_id,
-            "systems": std::iter::once(&*BUILTIN).chain(self.systems.iter()).map(|system|
+            "systems": builtins().into_iter().chain(self.systems.iter()).map(|system|
                 json!({"id":system.id,"name":system.name,"revision":system.revision,"builtIn":system.built_in,"roleCount":system.roles.len()})
             ).collect::<Vec<_>>(), "catalog": self.active().catalog()})
     }
@@ -238,7 +280,16 @@ impl RatingStore {
 
     fn apply_input(&self, system: &mut RatingSystem, body: &Value) -> Result<()> {
         system.name = name(body["name"].as_str().unwrap_or(""))?;
-        if system.name.to_lowercase() == BUILTIN.name.to_lowercase()
+        // A pre-upgrade custom system may already use a newly bundled name.
+        // Preserve it (and allow weight edits), but reserve preset names for
+        // new systems and actual name changes.
+        let unchanged_name = self.systems.iter().any(|existing| {
+            existing.id == system.id && existing.name.to_lowercase() == system.name.to_lowercase()
+        });
+        if (!unchanged_name
+            && builtins()
+                .iter()
+                .any(|preset| system.name.to_lowercase() == preset.name.to_lowercase()))
             || self.systems.iter().any(|existing| {
                 existing.id != system.id
                     && existing.name.to_lowercase() == system.name.to_lowercase()
@@ -256,9 +307,9 @@ impl RatingStore {
     }
 
     pub fn update(&mut self, id: &str, body: &Value) -> Result<RatingSystem> {
-        if id == BUILTIN_ID {
+        if self.find(id)?.built_in {
             return Err(Error::query(
-                "Duplicate Role Highlighted Rating to customize it.",
+                "Duplicate the built-in rating system to customize it.",
             ));
         }
         let mut system = self.find(id)?.clone();
@@ -279,7 +330,7 @@ impl RatingStore {
     }
 
     pub fn delete(&mut self, id: &str) -> Result<()> {
-        if id == BUILTIN_ID {
+        if self.find(id)?.built_in {
             return Err(Error::query(
                 "The built-in rating system cannot be deleted.",
             ));
