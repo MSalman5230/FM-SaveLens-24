@@ -73,7 +73,7 @@ jobs:
       - name: Install build and packaging tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential libssl-dev librsvg2-dev patchelf libfuse2 flatpak flatpak-builder xvfb dbus-x11 file
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential libssl-dev librsvg2-dev patchelf libfuse2 flatpak flatpak-builder appstream-compose xvfb dbus-x11 file
           rustup show
       - uses: Swatinem/rust-cache@v2
       - run: npm ci
@@ -84,6 +84,8 @@ jobs:
         env:
           RELEASE_TAG: ${{ inputs.release_tag }}
         run: node scripts/check-versions.mjs "$RELEASE_TAG"
+      - run: cargo fmt --all -- --check
+      - run: node --test tests/release.test.mjs
       - run: cargo test --locked -p fm-savelens-backend
       - run: cargo build --release --locked -p fm-savelens-backend
       - run: npm run tauri -- build --bundles appimage -- --locked

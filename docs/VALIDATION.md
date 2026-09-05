@@ -13,6 +13,8 @@ Parser: **fm24-rust-1**, application version **1.0.0**.
 - The Windows NSIS installer built successfully; the portable ZIP passed its extracted standalone-server check in a path containing spaces. The desktop loaded WebView2 from that ZIP and exposed the complete interface through Windows accessibility. PE dependency inspection confirmed the final server uses the static Visual C++ runtime.
 - Through the Rust browser interface, imported the 67,547-player Salford save, filtered to Abu Suleiman, and opened his full reference profile.
 - The Ubuntu 22.04 AppImage passed browser-server smoke checks both through FUSE and through extraction. A graphical launch under Xvfb rendered the branded interface and first-run folder settings.
+- The GNOME 50 Flatpak built and installed successfully. Its sandbox allowed reading the synthetic save from the home directory and denied writing to it; import, Unicode search, embedded assets, health, and settings checks passed using private app storage. All four local packages passed the release-file inventory check and have SHA-256 checksums.
+- PR #1 exposed Windows checkout line endings in `Cargo.lock` and a Flatpak metadata image-loader failure. The fixes passed three Release Please tests on Windows and Ubuntu 22.04 (including Windows Git checkout emulation), extracted Windows desktop/server checks, and the complete Flatpak packaging and installed-server checks. These are local results; GitHub must rerun CI after the fix is pushed.
 
 Reproduce collection parity with `npm run test:parity -- /path/to/private/saves`. The detailed migration report is written to ignored `.cache/rust-parity.json`; private saves are not included in CI.
 

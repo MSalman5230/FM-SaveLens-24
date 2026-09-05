@@ -5,11 +5,9 @@ sdk: org.gnome.Sdk
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.rust-stable
 command: fm-savelens-24
-# Ubuntu 22.04's builder calls the retired appstream-compose command. GNOME 50
-# provides appstreamcli compose, which we invoke explicitly during cleanup.
+# Compose metadata on the build host before export (see package-flatpak.sh).
+# GNOME 50's image loader requires a session portal unavailable during builds.
 appstream-compose: false
-cleanup-commands:
-  - appstreamcli compose --no-net --prefix=/ --origin=fm-savelens-24 --result-root=/app --data-dir=/app/share/app-info/xmls --icons-dir=/app/share/app-info/icons/flatpak /app
 finish-args:
   - --socket=wayland
   - --socket=fallback-x11
@@ -34,4 +32,5 @@ modules:
       - install -Dm755 target/release/fm-savelens-24-server /app/bin/fm-savelens-24-server
       - install -Dm644 fm-savelens.desktop /app/share/applications/io.github.MSalman5230.FMSaveLens24.desktop
       - install -Dm644 fm-savelens.metainfo.xml /app/share/metainfo/io.github.MSalman5230.FMSaveLens24.metainfo.xml
+      - cp -a share/app-info /app/share/
       - install -Dm644 src-tauri/icons/128x128@2x.png /app/share/icons/hicolor/256x256/apps/io.github.MSalman5230.FMSaveLens24.png

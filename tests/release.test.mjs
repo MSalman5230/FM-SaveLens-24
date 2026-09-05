@@ -31,6 +31,20 @@ function strategy(initial) {
     includeComponentInTag:false,
   });
 }
+test('Cargo.lock keeps LF line endings with Windows Git checkout settings', () => {
+  const root=mkdtempSync(join(tmpdir(),'fm-savelens-checkout-'));
+  const git=(...args)=>execFileSync('git',['-c','core.autocrlf=true',...args],{cwd:root,stdio:'pipe'});
+  try {
+    writeFileSync(join(root,'.gitattributes'),readFileSync('.gitattributes'));
+    writeFileSync(join(root,'Cargo.lock'),readFileSync('Cargo.lock','utf8').replace(/\r\n/g,'\n'));
+    git('init');
+    git('add','.gitattributes','Cargo.lock');
+    git('checkout-index','--force','--prefix=checkout/','Cargo.lock');
+    assert.ok(!readFileSync(join(root,'checkout/Cargo.lock'),'utf8').includes('\r'),
+      'Release Please requires LF in Cargo.lock, including on Windows runners');
+  } finally {rmSync(root,{recursive:true,force:true});}
+});
+
 test('Release Please starts at 1.0.0 and subsequently bumps patch, minor and major', async () => {
   const commit = (type, breaking=false) => parseConventionalCommits([{sha:'abc', message:type+(breaking?'!':'')+': test'}],logger)[0];
   assert.equal((await strategy(true).buildNewVersion([commit('feat')])).toString(),'1.0.0');

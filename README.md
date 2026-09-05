@@ -140,7 +140,7 @@ npm run tauri -- build --bundles nsis -- --locked
 ```sh
 # Ubuntu 22.04 AppImage
 npm run tauri -- build --bundles appimage -- --locked
-# Separate GNOME 50 SDK build; requires Flatpak and flatpak-builder
+# Separate GNOME 50 SDK build; requires Flatpak, flatpak-builder and appstream-compose
 bash scripts/package-flatpak.sh
 ```
 
