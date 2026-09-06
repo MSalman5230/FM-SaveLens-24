@@ -104,13 +104,9 @@ export function searchPlayers(db: DatabaseSync, params: URLSearchParams) {
     where.push("search_name LIKE ? ESCAPE '\\'");
     args.push("%" + normalize(q).replace(/[\\%_]/g, (x) => "\\" + x) + "%");
   }
-  for (const [field, max] of [
-    ["age", 120],
-    ["ca", 200],
-    ["pa", 200],
-  ] as const) {
-    const min = integer(field + "Min", 0, max),
-      mx = integer(field + "Max", 0, max);
+  for (const field of ["age", "ca", "pa"] as const) {
+    const min = integer(field + "Min", 0, Number.MAX_SAFE_INTEGER),
+      mx = integer(field + "Max", 0, Number.MAX_SAFE_INTEGER);
     if (min !== undefined && mx !== undefined && min > mx)
       throw new QueryError(`${field} minimum exceeds maximum.`);
     if (min !== undefined) {

@@ -113,12 +113,13 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch('/api' + path, { ...init, headers });
   const value = (await response.json()) as T & { error?: string };
   if (!response.ok)
-    throw new ApiError(value.error || `Request failed (${response.status})`, response.status);
+    throw new ApiError(value.error || `Request failed (${response.status})`, response.status, (value as { code?: string }).code);
   return value;
 }
 export class ApiError extends Error {
   status: number;
-  constructor(message: string, status: number) { super(message); this.status = status; }
+  code?: string;
+  constructor(message: string, status: number, code?: string) { super(message); this.status = status; this.code = code; }
 }
 export const date = (value: string) =>
   new Date(

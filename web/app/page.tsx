@@ -11,7 +11,6 @@ import {
   RefreshCw,
   X,
   Plus,
-  SlidersHorizontal,
   Database,
   LoaderCircle,
 } from "lucide-react";
@@ -33,26 +32,29 @@ import {
   ComboboxEmpty,
 } from "@/components/ui/combobox";
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { Progress, ProgressLabel, ProgressValue } from "@/components/ui/progress";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Pagination, PaginationContent, PaginationItem } from "@/components/ui/pagination";
-import { api, ApiError, date, size } from "@/lib/scout-api";
+import { api, date, size } from "@/lib/scout-api";
 import { watchSnapshotFocus } from "@/lib/focus-refresh";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { RoleRatings } from "@/components/role-ratings";
 import { RatingSystemSettings } from "@/components/rating-system-settings";
+import { CacheSettings } from "@/components/cache-settings";
+import { CacheLifecycle, handleSnapshotError, isCacheAbort, watchCacheRevision, type CacheClearResult } from "@/lib/cache";
 import { playerSearchQuery, ratingIdentity, ratingParams, reconcileRatingView, sameRatingSystem } from "@/lib/rating-systems";
 import { roleLabel, selectRole } from "@/lib/role-ratings";
 import { PlayerColumnChooser } from "@/components/player-column-chooser";
 import { PlayerListTable } from "@/components/player-list-table";
 import { PositionFilter, PositionMatching } from "@/components/position-filter";
-import { activeFilterCount, advancedFilterCount, defaultPositionFilters, positionMatchOf, selectedPositions, selectPositions } from "@/lib/position-filter";
+import { PlayerRangeFilter } from "@/components/player-range-filter";
+import { playerRanges } from "@/lib/range-filter";
+import { activeFilterCount, defaultPositionFilters, positionMatchOf, selectedPositions, selectPositions } from "@/lib/position-filter";
 import type { PositionMatch } from "@/lib/position-filter";
 import { columnStorageKey, legacyColumnStorageKey, defaultColumns, normalizeColumns, playerColumns, restoreColumnPreferences, resolveColumnSort, visibleSort } from "@/lib/player-columns";
 import { currentValue, requestSnapshot, resourceKey } from "@/lib/snapshot-request";
@@ -183,6 +185,9 @@ function ratingClass(v: number | null | undefined) {
 }
 
 export default function Home() {
+  const [cacheLifecycle] = useState(() => new CacheLifecycle());
+  const cacheApi = cacheLifecycle.request;
+  const [clearingCache, setClearingCache] = useState(false);
   const [saves, setSaves] = useState<SaveFile[]>([]),
     [selected, setSelected] = useState(""),
     [folder, setFolder] = useState("");
@@ -215,7 +220,6 @@ export default function Home() {
     [direction, setDirection] = useState("desc"),
     [page, setPage] = useState(1),
     [limit, setLimit] = useState("50");
-  const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
   const [searchResponse, setSearchResponse] = useState<ScopedValue<Results> | null>(null),
     [spinnerKey, setSpinnerKey] = useState<string | null>(null),
     [searchError, setSearchError] = useState("");
@@ -249,25 +253,26 @@ export default function Home() {
     );
   }, []);
   const refresh = useCallback(async (preferSnapshot?: string) => {
-    const list = await api<{ saves: SaveFile[] }>("/saves");
+    const list = await cacheApi<{ saves: SaveFile[] }>("/saves");
     applySaves(list.saves, preferSnapshot);
-  }, [applySaves]);
+  }, [applySaves, cacheApi]);
   const loadSnapshot = useCallback(async (id: string) => {
-    const meta = await api<Snapshot>("/snapshots/" + id);
+    const meta = await cacheApi<Snapshot>("/snapshots/" + id);
     setSnapshot(meta);
     setDetailId(null);
     setPage(1);
-  }, []);
+  }, [cacheApi]);
   useEffect(() => {
     let live = true;
     void (async () => {
       try {
         const [settings, catalog, roles] = await Promise.all([
-          api<{ folder: string; lastSnapshot?: string; activeJob: Job | null }>("/settings"),
+          cacheApi<{ folder: string; lastSnapshot?: string; activeJob: Job | null; cacheRevision: string }>("/settings"),
           api<{ attributes: Attribute[]; positions: string[] }>("/attributes"),
           api<RoleCatalog>("/roles"),
         ]);
         if (!live) return;
+        cacheLifecycle.observe(settings.cacheRevision);
         setFolder(settings.folder);
         if (!settings.folder) {
           setFolderDraft("");
@@ -289,7 +294,7 @@ export default function Home() {
         await refresh(settings.lastSnapshot);
         if (settings.lastSnapshot) await loadSnapshot(settings.lastSnapshot);
       } catch (e) {
-        if (live) setError(errorText(e));
+        if (live && !isCacheAbort(e)) setError(errorText(e));
       } finally {
         if (live) setInitializing(false);
       }
@@ -297,14 +302,14 @@ export default function Home() {
     return () => {
       live = false;
     };
-  }, [refresh, loadSnapshot]);
+  }, [refresh, loadSnapshot, cacheLifecycle, cacheApi]);
   useEffect(() => {
-    if (!jobId || jobStatus !== "running") return;
+    if (!jobId || jobStatus !== "running" || clearingCache) return;
     let cancelled = false,
       timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
       try {
-        const next = await api<Job>("/imports/" + jobId);
+        const next = await cacheApi<Job>("/imports/" + jobId);
         if (cancelled) return;
         setJob(next);
         if (next.status === "complete") {
@@ -314,7 +319,7 @@ export default function Home() {
         } else if (next.status === "error") setError(next.message);
         else if (next.status === "running") timer = setTimeout(poll, 450);
       } catch (e) {
-        if (!cancelled) {
+        if (!cancelled && !isCacheAbort(e)) {
           setError(errorText(e));
           timer = setTimeout(poll, 2000);
         }
@@ -325,18 +330,18 @@ export default function Home() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [jobId, jobStatus, loadSnapshot, refresh]);
+  }, [jobId, jobStatus, loadSnapshot, refresh, cacheApi, clearingCache]);
   // Recheck the source when returning to the app after playing or saving in FM.
   useEffect(() => {
-    if (!snapshotId) return;
+    if (!snapshotId || clearingCache) return;
     return watchSnapshotFocus({
       target: window,
       snapshotId,
-      request: api,
+      request: cacheApi,
       setSnapshot,
       setSaves: applySaves,
     });
-  }, [snapshotId, applySaves]);
+  }, [snapshotId, applySaves, cacheApi, clearingCache]);
   const [viewSystemKey, setViewSystemKey] = useState('');
   if (roleCatalog && viewSystemKey !== systemKey) {
     setViewSystemKey(systemKey);
@@ -373,6 +378,21 @@ export default function Home() {
   const searching = Boolean(snapshotId && roleCatalog && !result && !searchError);
   const showSearchSpinner = searching && spinnerKey === searchKey;
   const searchMessage = pageCache.prepared ? 'Searching players…' : 'Preparing player ratings…';
+  const unloadCache = useCallback(() => {
+    cacheLifecycle.cancel();
+    pageCache.clear();
+    setSnapshot(null); setDetailId(null); setDetailResponse(null); setDetailRole('');
+    setSearchResponse(null); setSpinnerKey(null); setSearchError(''); setDetailError('');
+    setJob(null); setStarting(false); setFilters({ ...defaultFilters }); setPage(1);
+    const nextSort = resolveColumnSort(columnIds, 'pa', 'desc', '');
+    setSort(nextSort.sort); setDirection(nextSort.direction);
+    setError(''); setNotice('Cache cleared. Read a save to load it again.');
+    setSaves(previous => previous.map(save => ({ ...save, cached: false })));
+    void refresh().catch(e => { if (!isCacheAbort(e)) setError(errorText(e)); });
+  }, [cacheLifecycle, pageCache, columnIds, refresh]);
+  const observeCacheRevision = useCallback((revision: string) => {
+    if (cacheLifecycle.observe(revision)) unloadCache();
+  }, [cacheLifecycle, unloadCache]);
   // Remote request state must reset whenever a new search starts.
   // oxlint-disable-next-line react/react-compiler
   useEffect(() => {
@@ -381,48 +401,53 @@ export default function Home() {
     setSearchError("");
     const filtersChanged = previousFilters.current !== filters;
     previousFilters.current = filters;
-    if (!snapshotId || !roleCatalog) return;
+    if (!snapshotId || !roleCatalog || clearingCache) return;
     const cached = pageCache.peek(query);
     if (cached) {
-      void pageCache.load(query, api<Results>); // Touch the LRU without a request.
+      void pageCache.load(query, cacheApi<Results>); // Touch the LRU without a request.
       setSearchResponse({ key: searchKey, value: cached });
       return;
     }
     const spinner = setTimeout(() => setSpinnerKey(searchKey), pageCache.prepared ? 150 : 0);
     const stop = requestSnapshot<Results>({
-      path: query, request: path => pageCache.load(path, api<Results>), delay: filtersChanged ? 200 : 0,
+      path: query, request: path => pageCache.load(path, cacheApi<Results>), delay: filtersChanged ? 200 : 0,
       onValue: value => {
         if (sameRatingSystem(value, roleCatalog)) setSearchResponse({ key: searchKey, value });
         else void refreshRoleCatalog().catch(e => setSearchError(errorText(e)));
       },
       onError: e => {
+        if (isCacheAbort(e)) return;
         setSearchResponse(null);
-        if (e instanceof ApiError && e.status === 409) void refreshRoleCatalog().catch(error => setSearchError(errorText(error)));
-        else setSearchError(errorText(e));
+        void handleSnapshotError(e, {
+          request: cacheApi, onRevision: observeCacheRevision, refreshRoles: refreshRoleCatalog,
+          onError: error => setSearchError(errorText(error)),
+        });
       },
       onSettled: () => { clearTimeout(spinner); setSpinnerKey(null); },
     });
     return () => { clearTimeout(spinner); stop(); };
-  }, [snapshotId, query, searchKey, roleCatalog, refreshRoleCatalog, pageCache, filters]);
+  }, [snapshotId, query, searchKey, roleCatalog, refreshRoleCatalog, pageCache, filters, cacheApi, clearingCache, observeCacheRevision]);
   // Clear the previous player's remote data before requesting another identity.
   // oxlint-disable-next-line react/react-compiler
   useEffect(() => {
     // oxlint-disable-next-line react/react-compiler -- prevent displaying the previous identity
     setDetailResponse(null);
     setDetailError("");
-    if (detailId === null || !snapshotId || !roleCatalog) return;
+    if (detailId === null || !snapshotId || !roleCatalog || clearingCache) return;
     return requestSnapshot<Detail>({
-      path: `/snapshots/${snapshotId}/players/${detailId}?${systemQuery}`, request: api,
+      path: `/snapshots/${snapshotId}/players/${detailId}?${systemQuery}`, request: cacheApi,
       onValue: value => {
         if (sameRatingSystem(value, roleCatalog)) setDetailResponse({ key: detailKey, value });
         else void refreshRoleCatalog().catch(e => setDetailError(errorText(e)));
       },
       onError: e => {
-        if (e instanceof ApiError && e.status === 409) void refreshRoleCatalog().catch(error => setDetailError(errorText(error)));
-        else setDetailError(errorText(e));
+        void handleSnapshotError(e, {
+          request: cacheApi, onRevision: observeCacheRevision, refreshRoles: refreshRoleCatalog,
+          onError: error => setDetailError(errorText(error)),
+        });
       },
     });
-  }, [detailId, snapshotId, detailKey, systemQuery, roleCatalog, refreshRoleCatalog]);
+  }, [detailId, snapshotId, detailKey, systemQuery, roleCatalog, refreshRoleCatalog, cacheApi, clearingCache, observeCacheRevision]);
   function openPlayer(id: number, roleId?: string) {
     setDetailRole(roleId ?? (sort.startsWith('role:') ? sort.slice(5) : filters.role));
     setDetailId(id);
@@ -462,13 +487,25 @@ export default function Home() {
     setDirection(nextSort.direction);
     setPage(1);
   };
+  useEffect(() => {
+    if (initializing || clearingCache) return;
+    return watchCacheRevision({ target: window, visibility: document, request: cacheApi, onRevision: observeCacheRevision });
+  }, [initializing, clearingCache, cacheApi, observeCacheRevision]);
+  function cacheCleared(result: CacheClearResult) {
+    cacheLifecycle.observe(result.usage.cacheRevision);
+    unloadCache();
+  }
+  function changeCacheClearing(value: boolean) {
+    if (value) cacheLifecycle.cancel();
+    setClearingCache(value);
+  }
   async function importSave() {
-    if (!selected) return;
+    if (!selected || clearingCache) return;
     setStarting(true);
     setError("");
     setNotice("");
     try {
-      const next = await api<Job>("/imports", {
+      const next = await cacheApi<Job>("/imports", {
         method: "POST",
         body: JSON.stringify({ saveId: selected }),
       });
@@ -479,7 +516,7 @@ export default function Home() {
         setNotice("Loaded from your local cache.");
       }
     } catch (e) {
-      setError(errorText(e));
+      if (!isCacheAbort(e)) setError(errorText(e));
     } finally {
       setStarting(false);
     }
@@ -487,12 +524,12 @@ export default function Home() {
   async function cancelImport() {
     if (!job) return;
     try {
-      const next = await api<Job>("/imports/" + job.id, { method: "DELETE" });
+      const next = await cacheApi<Job>("/imports/" + job.id, { method: "DELETE" });
       setJob(next);
       if (next.status === "complete") await loadSnapshot(next.snapshotId);
       else setNotice("Import cancelled.");
     } catch (e) {
-      setError(errorText(e));
+      if (!isCacheAbort(e)) setError(errorText(e));
     }
   }
   async function saveFolder() {
@@ -552,7 +589,6 @@ export default function Home() {
     .sort((a, b) => a.label.localeCompare(b.label)), [roleCatalog]);
   const selectedRole = roleCatalog?.roles.find(role => role.id === filters.role);
   const activeFilters = activeFilterCount(filters);
-  const advancedFilters = advancedFilterCount(filters);
   function changeSort(key: string) {
     setSort(key);
     setDirection(
@@ -581,7 +617,7 @@ export default function Home() {
         modelContext?: { registerTool: (t: Tool, options:{signal:AbortSignal}) => void|Promise<void> };
       }
     ).modelContext;
-    if (!context || !snapshotId || !roleCatalog) return;
+    if (!context || !snapshotId || !roleCatalog || clearingCache) return;
     const lifecycle=new AbortController();
     const register=(tool:Tool)=>{try{void Promise.resolve(context.registerTool(tool,{signal:lifecycle.signal})).catch(e=>console.warn('Browser tool registration failed',e));}catch(e){console.warn('Browser tool registration failed',e);}};
     register({
@@ -605,7 +641,7 @@ export default function Home() {
         const nextFilters = { ...defaultFilters, q, paMin: String(pa) };
         const nextSort = resolveColumnSort(columnIds, 'pa', 'desc', '');
         const nextQuery = playerSearchQuery(nextFilters, nextSort.sort, nextSort.direction, 1, '50', displayedRoleIds, displayBestRole, roleCatalog);
-        const found = await pageCache.load(nextQuery, api<Results>);
+        const found = await pageCache.load(nextQuery, cacheApi<Results>);
         if (lifecycle.signal.aborted) throw new Error('The active save or view changed.');
         flushSync(()=>{setFilters(nextFilters);setSort(nextSort.sort);setDirection(nextSort.direction);setPage(1);setLimit('50');setSearchResponse({key:resourceKey(snapshotId,nextQuery),value:found});});
         return found;
@@ -624,7 +660,7 @@ export default function Home() {
       execute: async (args) => {
         const id = Number(args.playerId);
         if (!Number.isInteger(id) || id < 0) throw new Error("Invalid player ID.");
-        const p = await api<Detail>(`/snapshots/${snapshotId}/players/${id}`);
+        const p = await cacheApi<Detail>(`/snapshots/${snapshotId}/players/${id}`);
         if (lifecycle.signal.aborted) throw new Error('The active save changed.');
         flushSync(()=>{setDetailRole('');setDetailId(p.id);});
         return {id:p.id,name:p.name,status:'opened'};
@@ -633,7 +669,7 @@ export default function Home() {
     return () => {
       lifecycle.abort();
     };
-  }, [snapshotId, displayedRoleIds, columnIds, displayBestRole, roleCatalog, pageCache]);
+  }, [snapshotId, displayedRoleIds, columnIds, displayBestRole, roleCatalog, pageCache, cacheApi, clearingCache]);
 
   return (
     <main className="scout-app">
@@ -715,7 +751,7 @@ export default function Home() {
         >
           <RefreshCw size={17} />
         </Button>
-        <Button disabled={!chosen || running || starting} onClick={() => void importSave()}>
+        <Button disabled={!chosen || running || starting || clearingCache} onClick={() => void importSave()}>
           {starting ? <LoaderCircle className="spin" size={16} /> : <Database size={16} />}{" "}
           {chosen?.cached ? "Open save" : "Read save"}
         </Button>
@@ -756,7 +792,7 @@ export default function Home() {
         </div>
       ))}
       <section className="search-layout">
-        <Collapsible className="filters" open={moreFiltersOpen} onOpenChange={setMoreFiltersOpen}>
+        <div className="filters">
           <fieldset className="primary-filters" aria-label="Player filters" disabled={!snapshot}>
             <label htmlFor="player-query">
               Name or player ID
@@ -794,124 +830,100 @@ export default function Home() {
                 disabled={!snapshot}
               />
             </div>
-            <PositionFilter positions={positions} value={selectedPositions(filters.position)}
-              match={positionMatchOf(filters.positionMatch)} disabled={!snapshot}
-              onChange={changePositions} />
-            <div className="filter-field">
-              <label htmlFor="role-and-duty">Role and duty</label>
-              <Picker label="Role and duty" options={roleOptions} value={filters.role}
-                onChange={changeRole} placeholder="Choose a role" disabled={!snapshot || !roleCatalog} />
-            </div>
-            <div className="filter-actions">
-              <CollapsibleTrigger render={<Button variant="outline" />}>
-                <SlidersHorizontal size={14} /> More filters
-                {advancedFilters > 0 && <span className="filter-count" aria-label={`${advancedFilters} active advanced filters`}>{advancedFilters}</span>}
-              </CollapsibleTrigger>
-              <Button variant="ghost" size="sm" onClick={clearFilters} disabled={!activeFilters}>Reset</Button>
-            </div>
-          </fieldset>
-          <CollapsibleContent>
-            <fieldset className="advanced-filters" aria-label="More player filters" disabled={!snapshot}>
+            <fieldset className="position-filter-group" aria-label="Position filters">
+              <PositionFilter positions={positions} value={selectedPositions(filters.position)}
+                match={positionMatchOf(filters.positionMatch)} disabled={!snapshot}
+                onChange={changePositions} />
+              <PositionMatching value={selectedPositions(filters.position)}
+                match={positionMatchOf(filters.positionMatch)} disabled={!snapshot}
+                onChange={changePositions} />
+            </fieldset>
+            <fieldset className="role-filter-group" aria-label="Role and rating filters">
+              <div className="filter-field">
+                <label htmlFor="role-and-duty">Role and duty</label>
+                <Picker label="Role and duty" options={roleOptions} value={filters.role}
+                  onChange={changeRole} placeholder="Choose a role" disabled={!snapshot || !roleCatalog} />
+              </div>
               <div className="filter-field">
                 <label htmlFor="role-minimum">Minimum role rating / 100</label>
                 <Input id="role-minimum" type="number" min={0} max={100} step="0.1"
                   placeholder="Any rating" value={filters.roleMin} disabled={!filters.role}
                   onChange={e => updateFilter("roleMin", e.target.value)} />
               </div>
-              {[
-                ["age", "Age", 120],
-                ["ca", "Current ability", 200],
-                ["pa", "Potential ability", 200],
-              ].map(([key, label, max]) => (
-                <div className="range-field" key={key}>
-                  <span className="filter-label">{label}</span>
-                  <div className="range-inputs">
-                    <Input
-                      aria-label={`${label} minimum`}
-                      type="number"
-                      min={0}
-                      max={max}
-                      placeholder="Min"
-                      value={filters[key + "Min"]}
-                      onChange={(e) => updateFilter(key + "Min", e.target.value)}
-                    />
-                    <span>–</span>
-                    <Input
-                      aria-label={`${label} maximum`}
-                      type="number"
-                      min={0}
-                      max={max}
-                      placeholder="Max"
-                      value={filters[key + "Max"]}
-                      onChange={(e) => updateFilter(key + "Max", e.target.value)}
-                    />
-                  </div>
-                </div>
-              ))}
-              <PositionMatching value={selectedPositions(filters.position)}
-                match={positionMatchOf(filters.positionMatch)} disabled={!snapshot}
-                onChange={changePositions} />
-              <div className="attribute-filter">
-                <div className="section-heading">MINIMUM ATTRIBUTES</div>
-                <Picker
-                  label="Attribute to filter"
-                  options={attrOptions}
-                  value={attributeKey}
-                  onChange={setAttributeKey}
-                  placeholder="Choose an attribute"
-                  disabled={!snapshot}
+            </fieldset>
+            <div className="filter-actions">
+              <Button variant="ghost" size="sm" onClick={clearFilters} disabled={!activeFilters}>Reset</Button>
+            </div>
+          </fieldset>
+          <fieldset className="advanced-filters" aria-label="Additional player filters" disabled={!snapshot}>
+            {playerRanges.map(({ key, label, max }) => (
+              <PlayerRangeFilter key={key} label={label} max={max} disabled={!snapshot}
+                value={[filters[key + "Min"], filters[key + "Max"]]}
+                onChange={([min, upper]) => {
+                  setFilters(current => ({ ...current, [key + "Min"]: min, [key + "Max"]: upper }));
+                  setPage(1);
+                }} />
+            ))}
+            <div className="attribute-filter">
+              <div className="section-heading">MINIMUM ATTRIBUTES</div>
+              <Picker
+                label="Attribute to filter"
+                options={attrOptions}
+                value={attributeKey}
+                onChange={setAttributeKey}
+                placeholder="Choose an attribute"
+                disabled={!snapshot}
+              />
+              <div className="attribute-add">
+                <Input
+                  aria-label="Minimum attribute rating"
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={attributeMin}
+                  onChange={(e) => setAttributeMin(e.target.value)}
                 />
-                <div className="attribute-add">
-                  <Input
-                    aria-label="Minimum attribute rating"
-                    type="number"
-                    min={1}
-                    max={20}
-                    value={attributeMin}
-                    onChange={(e) => setAttributeMin(e.target.value)}
-                  />
-                  <span className="muted">/ 20</span>
+                <span className="muted">/ 20</span>
+                <Button
+                  variant="secondary"
+                  aria-label="Add attribute filter"
+                  disabled={
+                    !attributeKey ||
+                    !Number.isInteger(Number(attributeMin)) ||
+                    Number(attributeMin) < 1 ||
+                    Number(attributeMin) > 20
+                  }
+                  onClick={() => {
+                    updateFilter("attr_" + attributeKey, attributeMin);
+                    setAttributeKey("");
+                  }}
+                >
+                  <Plus size={15} />
+                  Add
+                </Button>
+              </div>
+              <div className="attribute-chips">{attrFilters.map(([key, value]) => (
+                <div className="filter-chip" key={key}>
+                  <span>
+                    {attributes.find((a) => a.key === key.slice(5))?.label}{" "}
+                    <strong>≥ {value}</strong>
+                  </span>
                   <Button
-                    variant="secondary"
-                    aria-label="Add attribute filter"
-                    disabled={
-                      !attributeKey ||
-                      !Number.isInteger(Number(attributeMin)) ||
-                      Number(attributeMin) < 1 ||
-                      Number(attributeMin) > 20
-                    }
-                    onClick={() => {
-                      updateFilter("attr_" + attributeKey, attributeMin);
-                      setAttributeKey("");
-                    }}
+                    size="icon-xs"
+                    variant="ghost"
+                    aria-label={`Remove ${attributes.find((a) => a.key === key.slice(5))?.label} filter`}
+                    onClick={() => updateFilter(key, "")}
                   >
-                    <Plus size={15} />
-                    Add
+                    <X size={13} />
                   </Button>
                 </div>
-                <div className="attribute-chips">{attrFilters.map(([key, value]) => (
-                  <div className="filter-chip" key={key}>
-                    <span>
-                      {attributes.find((a) => a.key === key.slice(5))?.label}{" "}
-                      <strong>≥ {value}</strong>
-                    </span>
-                    <Button
-                      size="icon-xs"
-                      variant="ghost"
-                      aria-label={`Remove ${attributes.find((a) => a.key === key.slice(5))?.label} filter`}
-                      onClick={() => updateFilter(key, "")}
-                    >
-                      <X size={13} />
-                    </Button>
-                  </div>
-                ))}</div>
-              </div>
-            </fieldset>
-            <p className="filter-note">
-              Selected filters work together. Attributes use 1–20; ability uses 1–200; role ratings are out of 100.
-            </p>
-          </CollapsibleContent>
-        </Collapsible>
+              ))}</div>
+            </div>
+          </fieldset>
+          <p className="filter-note">
+              Positions require 15+ familiarity. Attributes: 1–20 · Role ratings: / 100. Manual age and ability entries can exceed the slider ranges.
+          </p>
+        </div>
         <div className="results">
           <div className="results-heading">
             <div>
@@ -1062,32 +1074,33 @@ export default function Home() {
             </p>
           )}
           <Button
-            disabled={running || savingFolder || !folderDraft.trim()}
+            disabled={running || savingFolder || clearingCache || !folderDraft.trim()}
             onClick={() => void saveFolder()}
           >
             {savingFolder ? "Saving…" : "Save folder"}
           </Button>
           {running && <p className="muted">Wait for the current import before changing folders.</p>}
+          <CacheSettings open={settingsOpen} busy={running || starting || savingFolder} clearing={clearingCache}
+            memoryBytes={() => pageCache.estimatedBytes()} onClearing={changeCacheClearing}
+            onCleared={cacheCleared} onRevision={observeCacheRevision} request={cacheApi} />
       </RatingSystemSettings>
-      <Sheet
+      <Dialog
         open={detailId !== null}
         onOpenChange={(open) => {
           if (!open) setDetailId(null);
         }}
       >
-        <SheetContent
-          className="player-sheet"
-          style={{ width: "min(830px, 100vw)", maxWidth: "none" }}
-        >
-          <SheetHeader>
+        <DialogContent className="player-profile">
+          <DialogHeader>
             <div className="eyebrow">PLAYER PROFILE</div>
-            <SheetTitle className="detail-name">{detail?.name ?? "Loading player…"}</SheetTitle>
-            <SheetDescription>
+            <DialogTitle className="detail-name">{detail?.name ?? "Loading player…"}</DialogTitle>
+            <DialogDescription>
               {detail
                 ? `${detail.club ?? "Club unavailable"} · ${detail.positions.join(", ")} · ${detail.age} years old`
                 : "Reading player details from your local snapshot."}
-            </SheetDescription>
-          </SheetHeader>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="profile-scroll">
           {detailError ? (
             <div className="message error" role="alert">
               {detailError}
@@ -1136,7 +1149,7 @@ export default function Home() {
                   <TabsTrigger value="roles">Role ratings</TabsTrigger>
                 </TabsList>
                 <TabsContent value="roles">
-                  <RoleRatings key={systemKey} player={detail} roles={roleCatalog?.roles ?? []} attributes={attributes} initialRoleId={detailRole} systemName={roleCatalog?.systemName ?? ''} systemId={roleCatalog?.systemId ?? ''} />
+                  <RoleRatings key={JSON.stringify([detailKey, detailRole, systemKey])} player={detail} roles={roleCatalog?.roles ?? []} initialRoleId={detailRole} systemName={roleCatalog?.systemName ?? ''} />
                 </TabsContent>
                 <TabsContent value="attributes">
               <div className="attribute-groups">
@@ -1176,8 +1189,9 @@ export default function Home() {
               </p>
             </div>
           )}
-        </SheetContent>
-      </Sheet>
+          </div>
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }

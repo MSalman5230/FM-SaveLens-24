@@ -18,6 +18,7 @@ export function reversePageQuery(query: string): string {
 /** One save/rating identity per instance. Never persisted in browser storage. */
 export class PlayerPageCache {
   private pages = new Map<string, Results>();
+  private sizes = new Map<string, number>();
   private pending = new Map<string, Promise<Results>>();
   private controller = new AbortController();
   prepared = false;
@@ -33,10 +34,19 @@ export class PlayerPageCache {
     return this.pages.get(pageQueryKey(query)) ?? null;
   }
 
+  estimatedBytes(): number {
+    return [...this.sizes.values()].reduce((sum, bytes) => sum + bytes, 0);
+  }
+
   private put(key: string, value: Results) {
     this.pages.delete(key);
     this.pages.set(key, value);
-    if (this.pages.size > 64) this.pages.delete(this.pages.keys().next().value!);
+    this.sizes.set(key, new TextEncoder().encode(JSON.stringify(value)).byteLength);
+    if (this.pages.size > 64) {
+      const oldest = this.pages.keys().next().value!;
+      this.pages.delete(oldest);
+      this.sizes.delete(oldest);
+    }
   }
 
   load(query: string, request: (path: string, init: RequestInit) => Promise<Results>): Promise<Results> {
@@ -89,6 +99,7 @@ export class PlayerPageCache {
     this.controller = new AbortController();
     this.pending.clear();
     this.pages.clear();
+    this.sizes.clear();
     this.prepared = false;
   }
 }

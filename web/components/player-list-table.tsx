@@ -14,14 +14,14 @@ export function PlayerListTable({ players, columns, roles, sort, direction, onSo
       const best = player.bestRole;
       const role = roles.find(role => role.id === best?.roleId);
       if (!best || !role) return <span className="muted" aria-label="Best role rating unavailable">—</span>;
-      return <button className="role-table-score" title={`${roleLabel(role)} · View attribute breakdown`}
-        aria-label={`Best role rating: ${formatRoleScore(best.score)} out of 100, ${roleLabel(role)}. View breakdown for ${player.name}`}
+      return <button className="role-table-score" title={`${roleLabel(role)} · View role ratings`}
+        aria-label={`Best role rating: ${formatRoleScore(best.score)} out of 100, ${roleLabel(role)}. View role ratings for ${player.name}`}
         onClick={e => { e.stopPropagation(); onOpen(player.id, best.roleId); }}>{formatBestRole(best.score, role)}</button>;
     }
     if (column.roleId) {
       const score = player.roleScores?.[column.roleId];
-      return <button className="role-table-score" title={score == null ? 'Rating unavailable — view attribute breakdown' : 'View attribute breakdown'}
-        aria-label={`${column.label}: ${formatRoleScore(score)}${score == null ? ', rating unavailable' : ' out of 100'}. View breakdown for ${player.name}`}
+      return <button className="role-table-score" title={score == null ? 'Rating unavailable — view role ratings' : 'View role ratings'}
+        aria-label={`${column.label}: ${formatRoleScore(score)}${score == null ? ', rating unavailable' : ' out of 100'}. View role ratings for ${player.name}`}
         onClick={e => { e.stopPropagation(); onOpen(player.id, column.roleId); }}>{formatRoleScore(score)}</button>;
     }
     switch (column.id) {

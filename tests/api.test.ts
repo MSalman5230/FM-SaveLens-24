@@ -150,7 +150,9 @@ test(
       assert.ok(a.pa > b.pa || (a.pa === b.pa && a.ca >= b.ca));
     }
     for (const query of [
-      "paMin=201",
+      "paMin=-1",
+      "caMax=9007199254740992",
+      "ageMin=1.5",
       "ageMin=30&ageMax=15",
       "sort=invalid",
       "direction=sideways",
@@ -158,6 +160,14 @@ test(
       "attr_pace=21",
     ])
       assert.equal((await call(path + "?" + query)).status, 400, query);
+    for (const field of ['age', 'ca', 'pa']) {
+      const above = await call(path + `?${field}Min=250`);
+      assert.equal(above.status, 200);
+      assert.equal(above.value.total, 0);
+      const upper = await call(path + `?${field}Max=250`);
+      assert.equal(upper.status, 200);
+      assert.equal(upper.value.total, meta.playerCount);
+    }
     assert.equal((await call(path + "?q=%25")).value.total, 0, "LIKE wildcards are literal");
     const accented = (await call(path + "?q=mbappe")).value;
     assert.ok(

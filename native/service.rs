@@ -21,7 +21,7 @@ use std::{
     io::Write,
     net::SocketAddr,
     path::{Path, PathBuf},
-    sync::{Arc, Condvar, Mutex},
+    sync::{Arc, Condvar, Mutex, RwLock},
     time::{Instant, UNIX_EPOCH},
 };
 use tokio::{net::TcpListener, task::JoinHandle};
@@ -131,6 +131,7 @@ struct Inner {
     jobs: BTreeMap<String, Job>,
     active: Option<Active>,
     shutting_down: bool,
+    cache_revision: String,
 }
 impl Inner {
     fn rating_library(&self) -> Value {
@@ -146,6 +147,8 @@ pub struct AppState {
     inner: Mutex<Inner>,
     rating_writer: Mutex<()>,
     searches: Mutex<Option<SearchContext>>,
+    cache_gate: RwLock<()>,
+    cache_clear: Mutex<()>,
     #[cfg(test)]
     search_preparations: std::sync::atomic::AtomicUsize,
     _lock: File,
@@ -156,6 +159,9 @@ struct SearchContext {
     revision: u64,
     session: Arc<Mutex<Option<storage::SearchSession>>>,
 }
+mod cache;
+#[cfg(test)]
+mod cache_tests;
 #[cfg(test)]
 mod rating_tests;
 #[cfg(test)]
@@ -209,6 +215,8 @@ impl AppState {
             data,
             rating_writer: Mutex::new(()),
             searches: Mutex::new(None),
+            cache_gate: RwLock::new(()),
+            cache_clear: Mutex::new(()),
             #[cfg(test)]
             search_preparations: std::sync::atomic::AtomicUsize::new(0),
             inner: Mutex::new(Inner {
@@ -218,6 +226,7 @@ impl AppState {
                 jobs: BTreeMap::new(),
                 active: None,
                 shutting_down: false,
+                cache_revision: uuid::Uuid::new_v4().to_string(),
             }),
             _lock: lock,
         });
@@ -555,7 +564,24 @@ impl AppState {
         query: &str,
         body: Value,
     ) -> Result<(u16, Value)> {
+        if method == "DELETE" && path == "/api/cache" {
+            return Ok((200, self.clear_cache()?));
+        }
+        // Keep every request's snapshot handles alive only under a read lease.
+        // Clearing holds the write lease, including during file deletion.
+        let _cache_lease = self.cache_gate.read().unwrap();
+        if path.starts_with("/api/snapshots/") || path.starts_with("/api/imports") {
+            for (key, value) in url::form_urlencoded::parse(query.as_bytes()) {
+                if key == "cacheRevision" && value != self.inner.lock().unwrap().cache_revision {
+                    return Err(Error::new(
+                        "CACHE_CHANGED",
+                        "The cache was cleared. Read the save again.",
+                    ));
+                }
+            }
+        }
         match (method, path) {
+            ("GET", "/api/cache") => Ok((200, self.cache_usage()?)),
             (_, "/api/health") => Ok((
                 200,
                 json!({"app":"fm24-scout","productName":"FM SaveLens 24","version":VERSION,"parserVersion":PARSER_VERSION}),
@@ -582,6 +608,7 @@ impl AppState {
             ("GET", "/api/settings") => {
                 let inner = self.inner.lock().unwrap();
                 let mut v = serde_json::to_value(&inner.settings)?;
+                v["cacheRevision"] = json!(inner.cache_revision);
                 v["activeJob"] = inner
                     .active
                     .as_ref()
@@ -728,13 +755,13 @@ fn json_response(status: u16, value: Value) -> Response {
 fn error_response(e: Error) -> Response {
     let status = match e.code.as_str() {
         "INVALID_QUERY" => 400,
-        "CONFLICT" | "RECOVERY_REQUIRED" => 409,
+        "CONFLICT" | "RECOVERY_REQUIRED" | "CACHE_CHANGED" => 409,
         "NOT_FOUND" => 404,
         "SHUTTING_DOWN" => 503,
         _ => 500,
     };
     let mut body = json!({"error":e.message});
-    if e.code == "RECOVERY_REQUIRED" {
+    if matches!(e.code.as_str(), "RECOVERY_REQUIRED" | "CACHE_CHANGED") {
         body["code"] = json!(e.code);
     }
     json_response(status, body)

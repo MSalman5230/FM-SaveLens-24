@@ -5,10 +5,59 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { setImmediate } from 'node:timers/promises';
 import type { RoleCatalog } from '../../web/lib/scout-api.ts';
-import { formatBestRole, formatRoleScore, playerQuery, rankedRoles, roleAbbreviation, roleLabel, selectRole } from '../../web/lib/role-ratings.ts';
+import { eligiblePlayerRoles, formatBestRole, formatRoleScore, groupedRoles, playerQuery, rankedRoles, roleAbbreviation, roleLabel, rolePositionGroups, selectRole } from '../../web/lib/role-ratings.ts';
 import { currentValue, requestSnapshot, resourceKey } from '../../web/lib/snapshot-request.ts';
 
 const catalog = JSON.parse(readFileSync(new URL('../../native/roles.json', import.meta.url), 'utf8')) as RoleCatalog;
+
+test('profile eligibility includes every outfield role or only goalkeeper roles at the GK threshold', () => {
+  for (const familiarity of [0, 1, 14, 15, 20]) {
+    const roles = eligiblePlayerRoles(catalog.roles, [familiarity, ...Array<number>(14).fill(20)]);
+    assert.equal(roles.length, familiarity >= 15 ? 4 : 81);
+    assert.ok(roles.every(role => (role.group === 'Goalkeepers') === (familiarity >= 15)));
+    const grouped = groupedRoles(roles, [], '');
+    assert.equal(grouped.flatMap(group => group.families.flatMap(family => family.rows)).length, roles.length);
+    assert.deepEqual(grouped.map(group => group.name), familiarity >= 15 ? ['Goalkeepers'] : rolePositionGroups.slice(0, 5));
+  }
+  assert.equal(eligiblePlayerRoles(catalog.roles, []).length, 81);
+});
+
+test('families keep duties together in tactical order and sort by full-precision best score', () => {
+  const ids = ['fb-attack', 'wb-support', 'fb-support', 'nfb-defend', 'fb-defend', 'cd-cover', 'cd-stopper', 'cd-defend'];
+  const roles = ids.map(id => catalog.roles.find(role => role.id === id)!);
+  const scores: Record<string, number | null> = { 'fb-attack': 80.001, 'fb-support': null, 'fb-defend': 40, 'wb-support': 80.002 };
+  const ratings = Object.entries(scores).map(([roleId, score]) => ({ roleId, score, missingAttributes: [] }));
+  const groups = groupedRoles(roles, ratings, '');
+  assert.deepEqual(groups[0].families[0].rows.map(row => row.role.duty), ['defend', 'stopper', 'cover']);
+  assert.deepEqual(groups[1].families.map(family => family.name), ['Wing-Back', 'Full-Back', 'No-Nonsense Full-Back']);
+  const fullback = groups[1].families[1];
+  assert.deepEqual(fullback.rows.map(row => row.role.duty), ['defend', 'support', 'attack']);
+  assert.equal(fullback.bestScore, 80.001);
+  assert.equal(fullback.rows[1].rating?.score, null);
+  assert.equal(groups[1].families[2].bestScore, null);
+});
+
+test('custom names stay separate, rating ties are alphabetical, and absent scores remain visible', () => {
+  const source = catalog.roles.find(role => role.id === 'fb-defend')!;
+  const roles = ['Zeta', 'Alpha', 'Unavailable'].map((name, i) => ({ ...source, id: `custom-${i}`, name }));
+  const ratings = roles.slice(0, 2).map(role => ({ roleId: role.id, score: 75, missingAttributes: [] }));
+  const families = groupedRoles(roles, ratings, '')[0].families;
+  assert.deepEqual(families.map(family => family.name), ['Alpha', 'Zeta', 'Unavailable']);
+  assert.equal(new Set(families.map(family => family.id)).size, 3);
+  assert.equal(families[2].rows[0].rating, undefined);
+});
+
+test('search matches roles, duties, IDs and positions within the eligible catalog and clears to all roles', () => {
+  const roles = eligiblePlayerRoles(catalog.roles, [1]);
+  const rows = (search: string) => groupedRoles(roles, [], search).flatMap(group => group.families.flatMap(family => family.rows));
+  assert.equal(rows('fb-attack').length, 1);
+  assert.ok(rows(' SUPPORT ').every(row => row.role.duty === 'support'));
+  assert.equal(rows('Central defenders').length, roles.filter(role => role.group === 'Central defenders').length);
+  assert.equal(rows('Goalkeeper').length, 0);
+  assert.equal(rows('nonexistent role').length, 0);
+  assert.equal(rows('').length, 81);
+  assert.equal(rows('   ').length, 81);
+});
 
 test('best role formatting uses one decimal and a short role code without duty', () => {
   for (const [id, code] of [

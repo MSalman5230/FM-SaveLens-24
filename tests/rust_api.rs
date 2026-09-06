@@ -43,6 +43,98 @@ async fn finish_job(client: &reqwest::Client, url: &str, mut job: Value) -> Valu
     .expect("Import did not complete")
 }
 
+#[tokio::test]
+async fn cache_api_clears_all_imports_and_allows_reading_the_same_save_again() {
+    let dir = tempfile::tempdir().unwrap();
+    let games = dir.path().join("games");
+    fs::create_dir(&games).unwrap();
+    let source = games.join("career.fm");
+    support::archive(&source, true, "24.3.0+0", 64);
+    let original = fs::read(&source).unwrap();
+    let server = service::start(0, &dir.path().join("data")).await.unwrap();
+    let url = server.url();
+    let client = reqwest::Client::new();
+    let save = select_save(&client, &url, &games).await;
+    let initial = value(client.get(format!("{url}/api/cache")).send().await.unwrap()).await;
+    assert_eq!(initial["diskBytes"], 0);
+    assert_eq!(initial["backendMemoryBytes"], 0);
+    for round in 0..2 {
+        let job = value(
+            client
+                .post(format!("{url}/api/imports"))
+                .json(&json!({"saveId": save["id"]}))
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        let job = finish_job(&client, &url, job).await;
+        let snapshot = job["snapshotId"].as_str().unwrap();
+        let players = value(
+            client
+                .get(format!(
+                    "{url}/api/snapshots/{snapshot}/players?sort=bestRoleRating"
+                ))
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(players["total"], 64);
+        let usage = value(client.get(format!("{url}/api/cache")).send().await.unwrap()).await;
+        assert_eq!(usage["snapshotCount"], 1);
+        assert!(usage["backendMemoryBytes"].as_u64().unwrap() > 0);
+        if round == 0 {
+            let cleared = value(
+                client
+                    .delete(format!("{url}/api/cache"))
+                    .send()
+                    .await
+                    .unwrap(),
+            )
+            .await;
+            assert_eq!(cleared["complete"], true);
+            assert_eq!(cleared["usage"]["diskBytes"], 0);
+            assert_eq!(cleared["usage"]["backendMemoryBytes"], 0);
+            let settings = value(
+                client
+                    .get(format!("{url}/api/settings"))
+                    .send()
+                    .await
+                    .unwrap(),
+            )
+            .await;
+            assert!(settings.get("lastSnapshot").is_none());
+            assert_eq!(settings["cacheRevision"], cleared["usage"]["cacheRevision"]);
+            let saves = value(client.get(format!("{url}/api/saves")).send().await.unwrap()).await;
+            assert_eq!(saves["saves"][0]["cached"], false);
+            assert_eq!(
+                client
+                    .get(format!("{url}/api/imports/{}", job["id"].as_str().unwrap()))
+                    .send()
+                    .await
+                    .unwrap()
+                    .status(),
+                404
+            );
+            assert_eq!(
+                client
+                    .get(format!(
+                        "{url}/api/snapshots/{snapshot}/players?cacheRevision={}",
+                        usage["cacheRevision"].as_str().unwrap()
+                    ))
+                    .send()
+                    .await
+                    .unwrap()
+                    .status(),
+                409
+            );
+        }
+    }
+    assert_eq!(fs::read(source).unwrap(), original);
+    server.shutdown().await.unwrap();
+}
+
 async fn delayed_import(
     address: std::net::SocketAddr,
     save_id: &Value,

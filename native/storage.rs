@@ -281,9 +281,10 @@ fn search_impl(
             .into(),
         );
     }
-    for (field, max) in [("age", 120), ("ca", 200), ("pa", 200)] {
-        let min = integer(&format!("{field}Min"), 0, max)?;
-        let high = integer(&format!("{field}Max"), 0, max)?;
+    for field in ["age", "ca", "pa"] {
+        // Match JavaScript's exact integer range, without imposing slider limits.
+        let min = integer(&format!("{field}Min"), 0, 9_007_199_254_740_991)?;
+        let high = integer(&format!("{field}Max"), 0, 9_007_199_254_740_991)?;
         if min.zip(high).is_some_and(|(a, b)| a > b) {
             return Err(Error::query(format!("{field} minimum exceeds maximum.")));
         }
