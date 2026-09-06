@@ -6,8 +6,6 @@ Supports FM24 internal save format **24.3.0+0**, compressed or uncompressed. Not
 
 ## Showcase
 
-Desktop screenshots using **James Colin - Luton Town (Manager)**, with 67,714 players indexed on the in-game date of 3 July 2023.
-
 ### Player search and filters
 
 Explore your save with filters for club, nationality, position, age, ability, attributes, and role rating.
