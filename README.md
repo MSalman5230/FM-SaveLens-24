@@ -1,28 +1,8 @@
 # FM SaveLens 24
 
-A local Football Manager 2024 save reader for desktop and browser. Search and filter players, compare current/potential ability (CA/PA), and inspect attributes, positions, clubs, and nationalities. Saves are read only, and your data stays on your computer.
+A local, read-only Football Manager 2024 save reader for desktop and browser. Search and filter players, compare CA/PA and attributes, and rate players by role. Your data stays on your computer.
 
 Supports FM24 internal save format **24.3.0+0**, compressed or uncompressed. Not affiliated with Sports Interactive or SEGA.
-
-Filters sit horizontally above the full-width player table and stay open, including age/CA/PA ranges, position matching, and attribute thresholds. **Role and duty** and **Minimum role rating / 100** appear together, with the minimum directly beneath the selector. Choose a role to enable its minimum rating; switching roles retains the minimum, and clearing the role clears it. **Reset** clears all filters.
-
-Drag either handle on the **Age** (0–50), **Current ability** (0–200), or **Potential ability** (0–200) sliders to set a range. You can also type nonnegative whole numbers in the **Min** and **Max** fields, including values beyond the slider ranges, such as 250; press Enter or leave the field to search using that value. A crossed range moves the opposite bound to the entered value. Slider handles stop at the track endpoints while the manual fields retain the actual search bounds; dragging one handle preserves the opposite bound unless the bounds cross. Clear a field to remove that bound, or use **Reset** to clear all restrictions.
-
-Select multiple **Positions** in the filter bar. Position matching sits directly beneath the selector: **All (AND)** (the default) requires a rating of **15+ in every selected position**; **Any (OR)** requires 15+ in at least one. Remove individual chips or choose **Clear** beside the matching options to remove the restriction. Clearing all positions or using **Reset** restores AND. See [position filter query parameters and examples](docs/POSITION_FILTERS.md).
-
-Rate players for all **45 FM24 roles / 85 role-and-duty profiles**. Select a role in search to rank and filter players, or open **Role ratings** on a profile for the attribute-weight breakdown. SaveLens scores are out of 100; position familiarity remains separate. New workspaces default to **FM-Arena Hybrid Rating**; saved system selections are preserved. The **Role Highlighted Rating** preset weights key attributes twice as much as preferable attributes, while custom systems use your saved attribute weights. Existing imports work immediately and ratings work offline. See the [complete role catalog and scoring research](docs/ROLE_RATINGS.md) and [FM-Arena Hybrid model](docs/FM_ARENA_HYBRID.md).
-
-Use **Edit columns** above the player list to tick player details and any number of role ratings, including multiple duties for the same role. Click a role heading to sort, or a score to open its attribute breakdown. Player names stay visible while scrolling sideways, and your column view is remembered on this device. **Reset view** restores the default columns.
-
-The default **Best role rating** column shows each player's highest available score across every role and duty in the active rating system, such as **85.4 (AF)**. AF means Advanced Forward, AP Advanced Playmaker, and CD Central Defender; duty is omitted from the abbreviation. Hover for the full role and duty, click the score for its breakdown, or click the heading to sort all matching players. Position and role filters restrict players without restricting which roles compete for their best score. A dash means no role rating is available. Existing column views gain this column once; you can hide it afterward in **Edit columns**.
-
-Opening a save prepares its role ratings in memory once. Player searches reuse those ratings, and ascending/descending sorts share the same ordering. The first page also loads its opposite direction, so switching back and forth displays cached results without a searching spinner. The backend retains 32 recent sort/filter combinations and the UI retains 64 pages. Caches reset when switching saves or rating definitions, restarting, or evicting older entries; imported saves stay read-only and no additional cache files are written.
-
-In **Settings → Rating systems**, copy the protected **Role Highlighted Rating** preset to create a named system with your own attribute weights. Include standard attributes, both foot strengths, and Consistency; use zero to exclude an attribute. Save edited roles as new roles, then choose **Use system** to apply your weights to player ratings, filters, sorting, and columns. Systems stay saved locally across imports and restarts. See [custom rating systems](docs/RATING_SYSTEMS.md).
-
-In **Settings → General → Cache**, see disk usage and cached-save count, backend cache memory, and an estimate of the current window's result-cache memory in MB/GB. Readings refresh while Settings is visible. These are cache measurements, not total application or browser RAM.
-
-**Clear all cache** removes parsed-save snapshots from this workspace and releases its cached ratings/results. Confirming closes the loaded save; choose **Read save** to import it again. Other open windows discard their cached results within five seconds while visible, or when brought back into view. Original `.fm` files, rating systems, and preferences are preserved. Finish or cancel an import before clearing. If files cannot be removed, Settings reports the remaining usage and allows retry. Completed snapshots otherwise remain on disk until manually cleared; there is no automatic disk quota or age-based cleanup. Browser/WebView assets, logs, and OS caches are outside this action, and runtimes may retain released memory for reuse.
 
 ## How to run
 
