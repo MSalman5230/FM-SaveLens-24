@@ -887,10 +887,58 @@ h2 {
 .settings-dialog p {
   line-height: 1.6;
 }
-.player-sheet {
-  background: #171f21 !important;
+.player-profile[data-slot="dialog-content"] {
+  display: flex;
+  flex-direction: column;
+  width: 80vw;
+  max-width: none;
+  height: 80dvh;
+  padding: 0;
+  overflow: hidden;
+  background: #171f21;
+  gap: 0;
+}
+.player-profile .profile-scroll {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  gap: 0 !important;
+  overscroll-behavior: contain;
+  overflow-wrap: anywhere;
+}
+.player-profile .attribute-groups {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+}
+.player-profile .attribute-group,
+.player-profile .detail-summary > div {
+  min-width: 0;
+}
+.player-profile .attribute-row {
+  min-height: 36px;
+  font-size: 1rem;
+}
+.player-profile .attribute-row .rating {
+  flex-shrink: 0;
+  font-size: 1rem;
+}
+.player-profile .detail-summary > div > span,
+.player-profile .detail-position {
+  font-size: 0.875rem;
+}
+.player-profile .profile-scroll > .message {
+  margin: 24px 32px;
+}
+@media (max-width: 600px) {
+  .player-profile[data-slot="dialog-content"] {
+    width: calc(100vw - 2rem);
+    height: calc(100dvh - 2rem);
+  }
+  .player-profile .detail-summary {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .player-profile .profile-scroll > .message {
+    margin: 20px;
+  }
 }
 .profile-tabs > [data-slot="tabs-list"] {
   margin-bottom: 18px;
@@ -998,8 +1046,12 @@ h2 {
 .role-ratings > .role-model-note:last-child {
   margin-top: 22px;
 }
-.player-sheet [data-slot="sheet-header"] {
-  padding: 30px 32px 22px;
+.player-profile [data-slot="dialog-header"] {
+  flex-shrink: 0;
+  padding: 24px 52px 20px 32px;
+  max-height: 40%;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
   border-bottom: 1px solid var(--border);
   gap: 7px;
 }
@@ -1009,8 +1061,8 @@ h2 {
   margin: 4px 25px 2px 0 !important;
   font-weight: 550 !important;
 }
-.player-sheet [data-slot="sheet-description"] {
-  font-size: 13px;
+.player-profile [data-slot="dialog-description"] {
+  font-size: 0.875rem;
 }
 .detail-body {
   padding: 24px 32px 30px;
@@ -1252,8 +1304,8 @@ h2 {
   .detail-body {
     padding: 22px 20px;
   }
-  .player-sheet [data-slot="sheet-header"] {
-    padding: 28px 20px 22px;
+  .player-profile [data-slot="dialog-header"] {
+    padding: 20px 48px 18px 20px;
   }
   .attribute-groups {
     gap: 22px;

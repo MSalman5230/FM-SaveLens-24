@@ -33,12 +33,12 @@ import {
   ComboboxEmpty,
 } from "@/components/ui/combobox";
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { Progress, ProgressLabel, ProgressValue } from "@/components/ui/progress";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Pagination, PaginationContent, PaginationItem } from "@/components/ui/pagination";
@@ -1107,25 +1107,23 @@ export default function Home() {
             memoryBytes={() => pageCache.estimatedBytes()} onClearing={changeCacheClearing}
             onCleared={cacheCleared} onRevision={observeCacheRevision} request={cacheApi} />
       </RatingSystemSettings>
-      <Sheet
+      <Dialog
         open={detailId !== null}
         onOpenChange={(open) => {
           if (!open) setDetailId(null);
         }}
       >
-        <SheetContent
-          className="player-sheet"
-          style={{ width: "min(830px, 100vw)", maxWidth: "none" }}
-        >
-          <SheetHeader>
+        <DialogContent className="player-profile">
+          <DialogHeader>
             <div className="eyebrow">PLAYER PROFILE</div>
-            <SheetTitle className="detail-name">{detail?.name ?? "Loading player…"}</SheetTitle>
-            <SheetDescription>
+            <DialogTitle className="detail-name">{detail?.name ?? "Loading player…"}</DialogTitle>
+            <DialogDescription>
               {detail
                 ? `${detail.club ?? "Club unavailable"} · ${detail.positions.join(", ")} · ${detail.age} years old`
                 : "Reading player details from your local snapshot."}
-            </SheetDescription>
-          </SheetHeader>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="profile-scroll">
           {detailError ? (
             <div className="message error" role="alert">
               {detailError}
@@ -1214,8 +1212,9 @@ export default function Home() {
               </p>
             </div>
           )}
-        </SheetContent>
-      </Sheet>
+          </div>
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }
