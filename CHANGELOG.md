@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.0](https://github.com/MSalman5230/FM-SaveLens-24/compare/v1.2.0...v1.3.0) (2026-09-06)
+
+
+### Features
+
+* add customizable rating systems, hybrid scores, and position filters ([b6dbebd](https://github.com/MSalman5230/FM-SaveLens-24/commit/b6dbebd633dd755ba9fe96065807c90c60d8c6f8))
+* group role ratings by position and improve filters, cache, and profile UI ([7656ec4](https://github.com/MSalman5230/FM-SaveLens-24/commit/7656ec417f1b3f4068cc5d82b837c2872a917921))
+
 ## [1.2.0](https://github.com/MSalman5230/FM-SaveLens-24/compare/v1.1.0...v1.2.0) (2026-09-05)
 
 
