@@ -96,6 +96,17 @@ fn main() {
                 }),
             )?;
             let quit = PredefinedMenuItem::quit(app, Some("Quit"))?;
+            #[cfg(target_os = "macos")]
+            {
+                let application = tauri::menu::Submenu::with_items(
+                    app,
+                    "FM SaveLens 24",
+                    true,
+                    &[&about, &browser, &quit],
+                )?;
+                app.set_menu(Menu::with_items(app, &[&application])?)?;
+            }
+            #[cfg(not(target_os = "macos"))]
             app.set_menu(Menu::with_items(app, &[&browser, &about, &quit])?)?;
             let browser_url = url.clone();
             app.on_menu_event(move |_, event| {
