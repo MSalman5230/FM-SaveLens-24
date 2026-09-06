@@ -1609,3 +1609,11 @@ h2 {
 .cache-usage dd { font-variant-numeric: tabular-nums; }
 .cache-settings > button { justify-self: start; }
 .cache-error { color: var(--destructive); white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; }
+
+.about-update-actions, .about-update-toggle { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.about-update-toggle { font-size: 14px; cursor: pointer; }
+.about-update-meta, .update-error { font-size: 14px; overflow-wrap: anywhere; }
+.update-error { color: var(--destructive); }
+.update-banner { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 12px 16px; margin-top: 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--muted); font-size: 14px; }
+.update-banner > span:first-child { flex: 1; }
+.update-banner > .update-error { flex-basis: 100%; }

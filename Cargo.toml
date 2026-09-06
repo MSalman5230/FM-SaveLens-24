@@ -30,6 +30,8 @@ rust-embed = { version = "8", features = ["debug-embed"] }
 serde = { version = "1", features = ["derive"] }
 # Snapshot timestamps must survive JSON deserialization without rounding.
 serde_json = { version = "1", features = ["float_roundtrip"] }
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+semver = "1"
 sha2 = "0.10"
 tempfile = "3"
 thiserror = "2"
@@ -39,9 +41,6 @@ unicode-normalization = "0.1"
 url = "2"
 uuid = { version = "1", features = ["v4", "serde"] }
 zstd = "0.13"
-
-[dev-dependencies]
-reqwest = { version = "0.12", default-features = false, features = ["json"] }
 
 [profile.release]
 lto = "thin"

@@ -149,6 +149,7 @@ pub struct AppState {
     searches: Mutex<Option<SearchContext>>,
     cache_gate: RwLock<()>,
     cache_clear: Mutex<()>,
+    updates: updates::UpdateStore,
     #[cfg(test)]
     search_preparations: std::sync::atomic::AtomicUsize,
     _lock: File,
@@ -166,6 +167,7 @@ mod cache_tests;
 mod rating_tests;
 #[cfg(test)]
 mod search_tests;
+mod updates;
 
 impl AppState {
     pub fn open(data: &Path) -> Result<Arc<Self>> {
@@ -212,6 +214,7 @@ impl AppState {
             Err(error) => (RatingStore::default(), Some(error.to_string())),
         };
         let app = Arc::new(Self {
+            updates: updates::UpdateStore::load(&data),
             data,
             rating_writer: Mutex::new(()),
             searches: Mutex::new(None),
@@ -569,7 +572,8 @@ impl AppState {
         }
         // Keep every request's snapshot handles alive only under a read lease.
         // Clearing holds the write lease, including during file deletion.
-        let _cache_lease = self.cache_gate.read().unwrap();
+        let _cache_lease =
+            (!path.starts_with("/api/updates")).then(|| self.cache_gate.read().unwrap());
         if path.starts_with("/api/snapshots/") || path.starts_with("/api/imports") {
             for (key, value) in url::form_urlencoded::parse(query.as_bytes()) {
                 if key == "cacheRevision" && value != self.inner.lock().unwrap().cache_revision {
@@ -581,6 +585,19 @@ impl AppState {
             }
         }
         match (method, path) {
+            ("GET", "/api/updates") => Ok((200, self.updates.status())),
+            ("POST", "/api/updates/check") => {
+                let manual = body["manual"]
+                    .as_bool()
+                    .ok_or_else(|| Error::query("Expected manual to be a boolean."))?;
+                Ok((200, self.updates.check(manual)?))
+            }
+            ("PUT", "/api/updates") => Ok((200, self.updates.preferences(&body)?)),
+            ("POST", "/api/updates/open") => {
+                let url = self.updates.release_url()?;
+                open::that_detached(url).map_err(|_| Error::new("OPEN_RELEASE", "Could not open your browser. Please visit the project's GitHub Releases page."))?;
+                Ok((200, json!({"opened":true})))
+            }
             ("GET", "/api/cache") => Ok((200, self.cache_usage()?)),
             (_, "/api/health") => Ok((
                 200,
@@ -797,6 +814,8 @@ async fn handle(State(state): State<HttpState>, req: Request<Body>) -> Response 
     let method = req.method().to_string();
     if path.starts_with("/api/") {
         let needs_body = (method == "PUT" && path == "/api/settings")
+            || (matches!(method.as_str(), "POST" | "PUT")
+                && (path == "/api/updates" || path.starts_with("/api/updates/")))
             || (matches!(method.as_str(), "POST" | "PUT")
                 && (path == "/api/rating-systems" || path.starts_with("/api/rating-systems/")))
             || (method == "POST" && path == "/api/imports");

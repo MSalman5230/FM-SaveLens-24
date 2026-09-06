@@ -47,6 +47,8 @@ import { RoleRatings } from "@/components/role-ratings";
 import { RatingSystemSettings } from "@/components/rating-system-settings";
 import { CacheSettings } from "@/components/cache-settings";
 import { AppActions } from "@/components/app-actions";
+import { UpdateBanner } from "@/components/update-banner";
+import { useUpdates } from "@/hooks/use-updates";
 import { CacheLifecycle, handleSnapshotError, isCacheAbort, watchCacheRevision, type CacheClearResult } from "@/lib/cache";
 import { playerSearchQuery, ratingIdentity, ratingParams, reconcileRatingView, sameRatingSystem } from "@/lib/rating-systems";
 import { roleLabel, selectRole } from "@/lib/role-ratings";
@@ -186,6 +188,7 @@ function ratingClass(v: number | null | undefined) {
 }
 
 export default function Home() {
+  const updates = useUpdates();
   const [cacheLifecycle] = useState(() => new CacheLifecycle());
   const cacheApi = cacheLifecycle.request;
   const [clearingCache, setClearingCache] = useState(false);
@@ -683,7 +686,7 @@ export default function Home() {
           <b>24</b>
         </div>
         <div className="header-actions">
-          <AppActions />
+          <AppActions updates={updates} />
           <Button
             variant="ghost"
             onClick={() => {
@@ -697,6 +700,7 @@ export default function Home() {
           </Button>
         </div>
       </header>
+      <UpdateBanner updates={updates} />
       <section className="workspace-heading">
         <div>
           <div className="eyebrow">FOOTBALL MANAGER 2024</div>

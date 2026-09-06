@@ -74,6 +74,14 @@ Keep Terminal open while using browser mode. Before reopening the desktop app, p
 
 After launching on any platform, finish saving in Football Manager, set your save folder in **Settings**, choose a save, and click **Read save**.
 
+### Update notifications
+
+Open **About** to check for updates, see the last successful check, or turn off **Automatically check for updates**. Automatic checks run once a day while the app is open and contact GitHub without sending save data. Offline checks never interrupt your work.
+
+A banner announces newer stable releases once all downloads are ready. **Dismiss** hides that version's banner across restarts; its **View release** button remains available in About. A later version shows a new banner. **View release** opens GitHub in your system browser so you can download and install the appropriate package yourself. Update preferences survive clearing save caches.
+
+Existing installations need a manual upgrade to the first release containing update notifications before they can notify you about later releases.
+
 ## Contributing
 
 Open an issue for bugs or ideas, or fork the repository and submit a pull request. Keep changes focused, use Conventional Commits (`fix:`, `feat:`), and never commit private save files.
