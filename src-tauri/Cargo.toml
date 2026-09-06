@@ -7,7 +7,7 @@ description = "FM SaveLens 24 desktop application"
 
 [dependencies]
 fm-savelens-backend = { path = "..", version = "1.3.0" }
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["dynamic-acl"] }
 tauri-plugin-dialog = "2"
 tokio = { version = "1", features = ["full"] }
 open = "5"

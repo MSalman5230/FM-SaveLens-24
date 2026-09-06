@@ -46,6 +46,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { RoleRatings } from "@/components/role-ratings";
 import { RatingSystemSettings } from "@/components/rating-system-settings";
 import { CacheSettings } from "@/components/cache-settings";
+import { AppActions } from "@/components/app-actions";
 import { CacheLifecycle, handleSnapshotError, isCacheAbort, watchCacheRevision, type CacheClearResult } from "@/lib/cache";
 import { playerSearchQuery, ratingIdentity, ratingParams, reconcileRatingView, sameRatingSystem } from "@/lib/rating-systems";
 import { roleLabel, selectRole } from "@/lib/role-ratings";
@@ -685,6 +686,7 @@ export default function Home() {
           <span className="local-status">
             <i /> Local workspace
           </span>
+          <AppActions />
           <Button
             variant="ghost"
             onClick={() => {

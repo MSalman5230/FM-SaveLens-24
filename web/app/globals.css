@@ -180,13 +180,15 @@ button {
   color: var(--muted-foreground);
 }
 .scout-app {
-  max-width: 1760px;
-  margin: auto;
+  width: 100%;
   padding: 0 40px 40px;
 }
 .masthead {
-  height: 85px;
+  min-height: 85px;
+  padding-block: 14px;
   display: flex;
+  flex-wrap: wrap;
+  gap: 12px 22px;
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid var(--border);
@@ -369,8 +371,33 @@ h2 {
 }
 .header-actions {
   display: flex;
-  gap: 22px;
+  flex-wrap: wrap;
+  gap: 8px 16px;
   align-items: center;
+}
+.browser-action {
+  position: relative;
+}
+.browser-action-error {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 10;
+  width: min(300px, calc(100vw - 28px));
+  padding: 12px;
+  border: 1px solid var(--destructive);
+  border-radius: 8px;
+  background: var(--popover);
+  color: var(--destructive);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.about-version {
+  display: grid;
+  gap: 12px;
+}
+.about-version > button {
+  justify-self: start;
 }
 .save-date {
   display: grid;
@@ -1276,7 +1303,7 @@ h2 {
     padding: 0 14px 24px;
   }
   .masthead {
-    height: 70px;
+    min-height: 70px;
   }
   .local-status {
     display: none;
