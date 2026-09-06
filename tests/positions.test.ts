@@ -43,6 +43,13 @@ test('reference position queries match the shared boundary, validation and pagin
     assert.equal(descending.total, 5);
     assert.deepEqual(descending.players.map(p => p.id), [3, 2]);
     assert.equal(searchPlayers(db, new URLSearchParams()).total, fixture.players.length);
+    for (const field of ['age', 'ca', 'pa']) {
+      assert.equal(searchPlayers(db, new URLSearchParams(`${field}Min=250`)).total, 0);
+      assert.equal(searchPlayers(db, new URLSearchParams(`${field}Max=250`)).total, fixture.players.length);
+      for (const invalid of ['-1', '1.5', '9007199254740992']) {
+        assert.throws(() => searchPlayers(db, new URLSearchParams(`${field}Min=${invalid}`)), QueryError);
+      }
+    }
   } finally {
     db.close();
   }

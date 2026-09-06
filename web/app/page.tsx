@@ -52,6 +52,8 @@ import { roleLabel, selectRole } from "@/lib/role-ratings";
 import { PlayerColumnChooser } from "@/components/player-column-chooser";
 import { PlayerListTable } from "@/components/player-list-table";
 import { PositionFilter, PositionMatching } from "@/components/position-filter";
+import { PlayerRangeFilter } from "@/components/player-range-filter";
+import { playerRanges } from "@/lib/range-filter";
 import { activeFilterCount, defaultPositionFilters, positionMatchOf, selectedPositions, selectPositions } from "@/lib/position-filter";
 import type { PositionMatch } from "@/lib/position-filter";
 import { columnStorageKey, legacyColumnStorageKey, defaultColumns, normalizeColumns, playerColumns, restoreColumnPreferences, resolveColumnSort, visibleSort } from "@/lib/player-columns";
@@ -825,9 +827,14 @@ export default function Home() {
                 disabled={!snapshot}
               />
             </div>
-            <PositionFilter positions={positions} value={selectedPositions(filters.position)}
-              match={positionMatchOf(filters.positionMatch)} disabled={!snapshot}
-              onChange={changePositions} />
+            <fieldset className="position-filter-group" aria-label="Position filters">
+              <PositionFilter positions={positions} value={selectedPositions(filters.position)}
+                match={positionMatchOf(filters.positionMatch)} disabled={!snapshot}
+                onChange={changePositions} />
+              <PositionMatching value={selectedPositions(filters.position)}
+                match={positionMatchOf(filters.positionMatch)} disabled={!snapshot}
+                onChange={changePositions} />
+            </fieldset>
             <fieldset className="role-filter-group" aria-label="Role and rating filters">
               <div className="filter-field">
                 <label htmlFor="role-and-duty">Role and duty</label>
@@ -846,39 +853,14 @@ export default function Home() {
             </div>
           </fieldset>
           <fieldset className="advanced-filters" aria-label="Additional player filters" disabled={!snapshot}>
-            {[
-              ["age", "Age", 120],
-              ["ca", "Current ability", 200],
-              ["pa", "Potential ability", 200],
-            ].map(([key, label, max]) => (
-              <div className="range-field" key={key}>
-                <span className="filter-label">{label}</span>
-                <div className="range-inputs">
-                  <Input
-                    aria-label={`${label} minimum`}
-                    type="number"
-                    min={0}
-                    max={max}
-                    placeholder="Min"
-                    value={filters[key + "Min"]}
-                    onChange={(e) => updateFilter(key + "Min", e.target.value)}
-                  />
-                  <span>–</span>
-                  <Input
-                    aria-label={`${label} maximum`}
-                    type="number"
-                    min={0}
-                    max={max}
-                    placeholder="Max"
-                    value={filters[key + "Max"]}
-                    onChange={(e) => updateFilter(key + "Max", e.target.value)}
-                  />
-                </div>
-              </div>
+            {playerRanges.map(({ key, label, max }) => (
+              <PlayerRangeFilter key={key} label={label} max={max} disabled={!snapshot}
+                value={[filters[key + "Min"], filters[key + "Max"]]}
+                onChange={([min, upper]) => {
+                  setFilters(current => ({ ...current, [key + "Min"]: min, [key + "Max"]: upper }));
+                  setPage(1);
+                }} />
             ))}
-            <PositionMatching value={selectedPositions(filters.position)}
-              match={positionMatchOf(filters.positionMatch)} disabled={!snapshot}
-              onChange={changePositions} />
             <div className="attribute-filter">
               <div className="section-heading">MINIMUM ATTRIBUTES</div>
               <Picker
@@ -936,7 +918,7 @@ export default function Home() {
             </div>
           </fieldset>
           <p className="filter-note">
-            Selected filters work together. Attributes use 1–20; ability uses 1–200; role ratings are out of 100.
+              Positions require 15+ familiarity. Attributes: 1–20 · Role ratings: / 100. Manual age and ability entries can exceed the slider ranges.
           </p>
         </div>
         <div className="results">

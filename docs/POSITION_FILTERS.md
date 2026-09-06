@@ -1,8 +1,8 @@
 # Position filters
 
-The sidebar supports multiple positions, checked options, removable chips, and **Clear positions**. Type a position abbreviation to find it and use the arrow keys and Enter to select it. **AND — All selected** is the default; with two or more selections, you can switch to **OR — Any selected**. No selections means no position restriction. Each selected position uses the same fixed minimum familiarity of **15** (accomplished or natural).
+The filter panel supports multiple positions, checked options, removable chips, and **Clear**. Type a position abbreviation to find it and use the arrow keys and Enter to select it. **All (AND)** is the default; with two or more selections, you can switch to **Any (OR)**. No selections means no position restriction. Each selected position uses the same fixed minimum familiarity of **15** (accomplished or natural).
 
-Adding or removing a position or changing the matching mode returns to page 1. Position chips remain in the horizontal filter bar; matching controls and Clear positions stay visible with the other filter details. Removing the last position, Clear positions, and Reset restore AND. The matching mode alone does not count as an active filter. Position changes preserve other filters, sorting, columns, and the selected rating system. All filter details remain open.
+Adding or removing a position or changing the matching mode returns to page 1. Position matching sits directly beneath the selector in the same group, including on smaller screens. **Clear** appears beside the matching options when positions are selected. Removing the last position, Clear, and Reset restore AND. The matching mode alone does not count as an active filter. Position changes preserve other filters, sorting, columns, and the selected rating system. All filter details remain open.
 
 ## Player query parameters
 

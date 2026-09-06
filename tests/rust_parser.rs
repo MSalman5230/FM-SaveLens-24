@@ -93,8 +93,20 @@ fn compressed_and_plain_records_match_and_query_correctly() {
         assert_ne!(first["players"][0]["id"], second["players"][0]["id"]);
         assert_eq!(storage::search(&db, "q=%25").unwrap()["total"], 0);
         assert_eq!(storage::search(&db, "club=-1").unwrap()["total"], 64);
+        for field in ["age", "ca", "pa"] {
+            assert_eq!(
+                storage::search(&db, &format!("{field}Min=250")).unwrap()["total"],
+                0
+            );
+            assert_eq!(
+                storage::search(&db, &format!("{field}Max=250")).unwrap()["total"],
+                64
+            );
+        }
         for q in [
-            "paMin=201",
+            "paMin=-1",
+            "caMax=9007199254740992",
+            "ageMin=1.5",
             "ageMin=30&ageMax=15",
             "sort=invalid",
             "direction=sideways",
