@@ -137,8 +137,8 @@ fn rate_limit_retry(headers: &reqwest::header::HeaderMap, now: i64) -> i64 {
         .into_iter()
         .chain(reset)
         .max()
-        .unwrap_or(now + COOLDOWN)
-        .max(now + COOLDOWN)
+        .unwrap_or(now.saturating_add(COOLDOWN))
+        .clamp(now.saturating_add(COOLDOWN), now.saturating_add(DAY))
 }
 
 fn fetch_release(endpoint: &str) -> std::result::Result<String, CheckFailure> {

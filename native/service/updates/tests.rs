@@ -232,20 +232,89 @@ fn corrupt_update_file_does_not_prevent_startup_or_enable_network() {
 }
 
 #[test]
-fn rate_limit_headers_and_offline_responses() {
+fn rate_limit_headers_have_bounded_cooldowns() {
+    let now = 1000;
+    for (after, reset, expected) in [
+        (None, None, 1060),
+        (Some("invalid"), Some("invalid"), 1060),
+        (Some("-120"), Some("-1500"), 1060),
+        (Some("0"), Some("900"), 1060),
+        (Some("60"), None, 1060),
+        (Some("120"), None, 1120),
+        (None, Some("1500"), 1500),
+        (Some("120"), Some("1500"), 1500),
+        (Some("600"), Some("1500"), 1600),
+        (Some("invalid"), Some("1500"), 1500),
+        (Some("120"), Some("invalid"), 1120),
+        (Some("Thu, 01 Jan 1970 00:00:00 GMT"), None, 1060),
+        (Some("Thu, 01 Jan 1970 00:20:00 GMT"), None, 1200),
+        (
+            Some("Wed, 21 Oct 2015 07:28:00 GMT"),
+            Some("1500"),
+            now + DAY,
+        ),
+        (Some("86400"), None, now + DAY),
+        (Some("86401"), None, now + DAY),
+        (Some("9223372036854775807"), None, now + DAY),
+        (None, Some("9223372036854775807"), now + DAY),
+        (Some("120"), Some("9223372036854775807"), now + DAY),
+    ] {
+        let mut headers = reqwest::header::HeaderMap::new();
+        for (name, value) in [("retry-after", after), ("x-ratelimit-reset", reset)] {
+            if let Some(value) = value {
+                headers.insert(name, value.parse().unwrap());
+            }
+        }
+        assert_eq!(
+            rate_limit_retry(&headers, now),
+            expected,
+            "retry-after={after:?}, x-ratelimit-reset={reset:?}"
+        );
+    }
+}
+
+#[test]
+fn rate_limit_bounds_saturate_near_timestamp_limit() {
     let mut headers = reqwest::header::HeaderMap::new();
-    headers.insert("retry-after", "120".parse().unwrap());
-    headers.insert("x-ratelimit-reset", "1500".parse().unwrap());
-    assert_eq!(rate_limit_retry(&headers, 1000), 1500);
-    headers.insert(
-        "retry-after",
-        "Wed, 21 Oct 2015 07:28:00 GMT".parse().unwrap(),
-    );
-    assert!(rate_limit_retry(&headers, 1000) > 1500);
-    assert_eq!(
-        rate_limit_retry(&reqwest::header::HeaderMap::new(), 1000),
-        1060
-    );
+    assert_eq!(rate_limit_retry(&headers, i64::MAX - 30), i64::MAX);
+    headers.insert("retry-after", "9223372036854775807".parse().unwrap());
+    assert_eq!(rate_limit_retry(&headers, i64::MAX - 120), i64::MAX);
+}
+
+#[test]
+fn capped_rate_limit_survives_restart_and_expires_for_manual_and_automatic_checks() {
+    for manual in [true, false] {
+        let dir = tempfile::tempdir().unwrap();
+        let store = UpdateStore::load(dir.path());
+        let now = 1000;
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert("x-ratelimit-reset", "9223372036854775807".parse().unwrap());
+        let status = store
+            .check_with(manual, now, || {
+                Err(CheckFailure {
+                    message: "Limited".into(),
+                    retry_at: Some(rate_limit_retry(&headers, now)),
+                })
+            })
+            .unwrap();
+        assert_eq!(status["retryAt"], now + DAY);
+        drop(store);
+        let reopened = UpdateStore::load(dir.path());
+        assert_eq!(reopened.status()["retryAt"], now + DAY);
+        reopened
+            .check_with(manual, now + DAY - 1, || panic!("rate limited"))
+            .unwrap();
+        let recovered = reopened
+            .check_with(manual, now + DAY, || Ok("v9.0.0".into()))
+            .unwrap();
+        assert!(recovered["error"].is_null());
+        assert_eq!(recovered["lastCheckedAt"], now + DAY);
+        assert_eq!(recovered["latestVersion"], "9.0.0");
+    }
+}
+
+#[test]
+fn rate_limit_and_offline_responses() {
     for (code, body) in [
         (429, "{}"),
         (500, "{}"),

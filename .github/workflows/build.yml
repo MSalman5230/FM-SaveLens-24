@@ -26,10 +26,11 @@ jobs:
             target: x86_64-apple-darwin
             arch: x86_64
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ inputs.ref || github.sha }}
-      - uses: actions/setup-node@v4
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '24'
           cache: npm
@@ -40,7 +41,7 @@ jobs:
         run: |
           rustup show
           rustup target add "${{ matrix.target }}"
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           key: macos-${{ matrix.target }}
       - run: npm ci
@@ -67,7 +68,7 @@ jobs:
           cp target/"$MACOS_TARGET"/release/bundle/dmg/*.dmg "dist/FM-SaveLens-24-v${version}-macos-${MACOS_ARCH}.dmg"
       - name: Verify DMG architecture, signature, and browser mode
         run: bash scripts/smoke-macos-package.sh "${{ matrix.arch }}" dist/*.dmg
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: packages-macos-${{ matrix.arch }}
           path: dist/*.dmg
