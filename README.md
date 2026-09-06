@@ -64,11 +64,13 @@ Open the DMG, drag **FM SaveLens 24** into **Applications**, then launch it from
 
 The macOS builds are ad-hoc signed and are not notarized by Apple. If macOS blocks the first launch, open **System Settings > Privacy & Security**, choose **Open Anyway** for FM SaveLens 24, and confirm. Only allow a download you trust from this project's releases.
 
-For browser mode, choose **FM SaveLens 24 > Open in Browser** in the menu bar, or run:
+For browser mode, first quit the desktop app with **Cmd+Q**, then run this command in **Terminal**:
 
 ```sh
 "/Applications/FM SaveLens 24.app/Contents/MacOS/fm-savelens-24" --browser
 ```
+
+Keep Terminal open while using browser mode. Before reopening the desktop app, press **Ctrl+C** in Terminal to stop browser mode and release the shared data directory.
 
 After launching on any platform, finish saving in Football Manager, set your save folder in **Settings**, choose a save, and click **Read save**.
 

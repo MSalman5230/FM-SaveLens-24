@@ -58,7 +58,6 @@ fn main() {
     let owned = server.clone();
     let executor = runtime.clone();
     let app = tauri::Builder::default()
-        .enable_macos_default_menu(false)
         .plugin(tauri_plugin_dialog::init())
         .setup(move |app| {
             #[cfg(windows)]
