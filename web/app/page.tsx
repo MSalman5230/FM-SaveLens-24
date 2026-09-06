@@ -11,7 +11,6 @@ import {
   RefreshCw,
   X,
   Plus,
-  SlidersHorizontal,
   Database,
   LoaderCircle,
 } from "lucide-react";
@@ -40,7 +39,6 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Progress, ProgressLabel, ProgressValue } from "@/components/ui/progress";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Pagination, PaginationContent, PaginationItem } from "@/components/ui/pagination";
 import { api, ApiError, date, size } from "@/lib/scout-api";
 import { watchSnapshotFocus } from "@/lib/focus-refresh";
@@ -54,7 +52,7 @@ import { roleLabel, selectRole } from "@/lib/role-ratings";
 import { PlayerColumnChooser } from "@/components/player-column-chooser";
 import { PlayerListTable } from "@/components/player-list-table";
 import { PositionFilter, PositionMatching } from "@/components/position-filter";
-import { activeFilterCount, advancedFilterCount, defaultPositionFilters, positionMatchOf, selectedPositions, selectPositions } from "@/lib/position-filter";
+import { activeFilterCount, defaultPositionFilters, positionMatchOf, selectedPositions, selectPositions } from "@/lib/position-filter";
 import type { PositionMatch } from "@/lib/position-filter";
 import { columnStorageKey, legacyColumnStorageKey, defaultColumns, normalizeColumns, playerColumns, restoreColumnPreferences, resolveColumnSort, visibleSort } from "@/lib/player-columns";
 import { currentValue, requestSnapshot, resourceKey } from "@/lib/snapshot-request";
@@ -220,7 +218,6 @@ export default function Home() {
     [direction, setDirection] = useState("desc"),
     [page, setPage] = useState(1),
     [limit, setLimit] = useState("50");
-  const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
   const [searchResponse, setSearchResponse] = useState<ScopedValue<Results> | null>(null),
     [spinnerKey, setSpinnerKey] = useState<string | null>(null),
     [searchError, setSearchError] = useState("");
@@ -587,7 +584,6 @@ export default function Home() {
     .sort((a, b) => a.label.localeCompare(b.label)), [roleCatalog]);
   const selectedRole = roleCatalog?.roles.find(role => role.id === filters.role);
   const activeFilters = activeFilterCount(filters);
-  const advancedFilters = advancedFilterCount(filters);
   function changeSort(key: string) {
     setSort(key);
     setDirection(
@@ -791,7 +787,7 @@ export default function Home() {
         </div>
       ))}
       <section className="search-layout">
-        <Collapsible className="filters" open={moreFiltersOpen} onOpenChange={setMoreFiltersOpen}>
+        <div className="filters">
           <fieldset className="primary-filters" aria-label="Player filters" disabled={!snapshot}>
             <label htmlFor="player-query">
               Name or player ID
@@ -832,121 +828,117 @@ export default function Home() {
             <PositionFilter positions={positions} value={selectedPositions(filters.position)}
               match={positionMatchOf(filters.positionMatch)} disabled={!snapshot}
               onChange={changePositions} />
-            <div className="filter-field">
-              <label htmlFor="role-and-duty">Role and duty</label>
-              <Picker label="Role and duty" options={roleOptions} value={filters.role}
-                onChange={changeRole} placeholder="Choose a role" disabled={!snapshot || !roleCatalog} />
-            </div>
-            <div className="filter-actions">
-              <CollapsibleTrigger render={<Button variant="outline" />}>
-                <SlidersHorizontal size={14} /> More filters
-                {advancedFilters > 0 && <span className="filter-count" aria-label={`${advancedFilters} active advanced filters`}>{advancedFilters}</span>}
-              </CollapsibleTrigger>
-              <Button variant="ghost" size="sm" onClick={clearFilters} disabled={!activeFilters}>Reset</Button>
-            </div>
-          </fieldset>
-          <CollapsibleContent>
-            <fieldset className="advanced-filters" aria-label="More player filters" disabled={!snapshot}>
+            <fieldset className="role-filter-group" aria-label="Role and rating filters">
+              <div className="filter-field">
+                <label htmlFor="role-and-duty">Role and duty</label>
+                <Picker label="Role and duty" options={roleOptions} value={filters.role}
+                  onChange={changeRole} placeholder="Choose a role" disabled={!snapshot || !roleCatalog} />
+              </div>
               <div className="filter-field">
                 <label htmlFor="role-minimum">Minimum role rating / 100</label>
                 <Input id="role-minimum" type="number" min={0} max={100} step="0.1"
                   placeholder="Any rating" value={filters.roleMin} disabled={!filters.role}
                   onChange={e => updateFilter("roleMin", e.target.value)} />
               </div>
-              {[
-                ["age", "Age", 120],
-                ["ca", "Current ability", 200],
-                ["pa", "Potential ability", 200],
-              ].map(([key, label, max]) => (
-                <div className="range-field" key={key}>
-                  <span className="filter-label">{label}</span>
-                  <div className="range-inputs">
-                    <Input
-                      aria-label={`${label} minimum`}
-                      type="number"
-                      min={0}
-                      max={max}
-                      placeholder="Min"
-                      value={filters[key + "Min"]}
-                      onChange={(e) => updateFilter(key + "Min", e.target.value)}
-                    />
-                    <span>–</span>
-                    <Input
-                      aria-label={`${label} maximum`}
-                      type="number"
-                      min={0}
-                      max={max}
-                      placeholder="Max"
-                      value={filters[key + "Max"]}
-                      onChange={(e) => updateFilter(key + "Max", e.target.value)}
-                    />
-                  </div>
-                </div>
-              ))}
-              <PositionMatching value={selectedPositions(filters.position)}
-                match={positionMatchOf(filters.positionMatch)} disabled={!snapshot}
-                onChange={changePositions} />
-              <div className="attribute-filter">
-                <div className="section-heading">MINIMUM ATTRIBUTES</div>
-                <Picker
-                  label="Attribute to filter"
-                  options={attrOptions}
-                  value={attributeKey}
-                  onChange={setAttributeKey}
-                  placeholder="Choose an attribute"
-                  disabled={!snapshot}
-                />
-                <div className="attribute-add">
+            </fieldset>
+            <div className="filter-actions">
+              <Button variant="ghost" size="sm" onClick={clearFilters} disabled={!activeFilters}>Reset</Button>
+            </div>
+          </fieldset>
+          <fieldset className="advanced-filters" aria-label="Additional player filters" disabled={!snapshot}>
+            {[
+              ["age", "Age", 120],
+              ["ca", "Current ability", 200],
+              ["pa", "Potential ability", 200],
+            ].map(([key, label, max]) => (
+              <div className="range-field" key={key}>
+                <span className="filter-label">{label}</span>
+                <div className="range-inputs">
                   <Input
-                    aria-label="Minimum attribute rating"
+                    aria-label={`${label} minimum`}
                     type="number"
-                    min={1}
-                    max={20}
-                    value={attributeMin}
-                    onChange={(e) => setAttributeMin(e.target.value)}
+                    min={0}
+                    max={max}
+                    placeholder="Min"
+                    value={filters[key + "Min"]}
+                    onChange={(e) => updateFilter(key + "Min", e.target.value)}
                   />
-                  <span className="muted">/ 20</span>
+                  <span>–</span>
+                  <Input
+                    aria-label={`${label} maximum`}
+                    type="number"
+                    min={0}
+                    max={max}
+                    placeholder="Max"
+                    value={filters[key + "Max"]}
+                    onChange={(e) => updateFilter(key + "Max", e.target.value)}
+                  />
+                </div>
+              </div>
+            ))}
+            <PositionMatching value={selectedPositions(filters.position)}
+              match={positionMatchOf(filters.positionMatch)} disabled={!snapshot}
+              onChange={changePositions} />
+            <div className="attribute-filter">
+              <div className="section-heading">MINIMUM ATTRIBUTES</div>
+              <Picker
+                label="Attribute to filter"
+                options={attrOptions}
+                value={attributeKey}
+                onChange={setAttributeKey}
+                placeholder="Choose an attribute"
+                disabled={!snapshot}
+              />
+              <div className="attribute-add">
+                <Input
+                  aria-label="Minimum attribute rating"
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={attributeMin}
+                  onChange={(e) => setAttributeMin(e.target.value)}
+                />
+                <span className="muted">/ 20</span>
+                <Button
+                  variant="secondary"
+                  aria-label="Add attribute filter"
+                  disabled={
+                    !attributeKey ||
+                    !Number.isInteger(Number(attributeMin)) ||
+                    Number(attributeMin) < 1 ||
+                    Number(attributeMin) > 20
+                  }
+                  onClick={() => {
+                    updateFilter("attr_" + attributeKey, attributeMin);
+                    setAttributeKey("");
+                  }}
+                >
+                  <Plus size={15} />
+                  Add
+                </Button>
+              </div>
+              <div className="attribute-chips">{attrFilters.map(([key, value]) => (
+                <div className="filter-chip" key={key}>
+                  <span>
+                    {attributes.find((a) => a.key === key.slice(5))?.label}{" "}
+                    <strong>≥ {value}</strong>
+                  </span>
                   <Button
-                    variant="secondary"
-                    aria-label="Add attribute filter"
-                    disabled={
-                      !attributeKey ||
-                      !Number.isInteger(Number(attributeMin)) ||
-                      Number(attributeMin) < 1 ||
-                      Number(attributeMin) > 20
-                    }
-                    onClick={() => {
-                      updateFilter("attr_" + attributeKey, attributeMin);
-                      setAttributeKey("");
-                    }}
+                    size="icon-xs"
+                    variant="ghost"
+                    aria-label={`Remove ${attributes.find((a) => a.key === key.slice(5))?.label} filter`}
+                    onClick={() => updateFilter(key, "")}
                   >
-                    <Plus size={15} />
-                    Add
+                    <X size={13} />
                   </Button>
                 </div>
-                <div className="attribute-chips">{attrFilters.map(([key, value]) => (
-                  <div className="filter-chip" key={key}>
-                    <span>
-                      {attributes.find((a) => a.key === key.slice(5))?.label}{" "}
-                      <strong>≥ {value}</strong>
-                    </span>
-                    <Button
-                      size="icon-xs"
-                      variant="ghost"
-                      aria-label={`Remove ${attributes.find((a) => a.key === key.slice(5))?.label} filter`}
-                      onClick={() => updateFilter(key, "")}
-                    >
-                      <X size={13} />
-                    </Button>
-                  </div>
-                ))}</div>
-              </div>
-            </fieldset>
-            <p className="filter-note">
-              Selected filters work together. Attributes use 1–20; ability uses 1–200; role ratings are out of 100.
-            </p>
-          </CollapsibleContent>
-        </Collapsible>
+              ))}</div>
+            </div>
+          </fieldset>
+          <p className="filter-note">
+            Selected filters work together. Attributes use 1–20; ability uses 1–200; role ratings are out of 100.
+          </p>
+        </div>
         <div className="results">
           <div className="results-heading">
             <div>

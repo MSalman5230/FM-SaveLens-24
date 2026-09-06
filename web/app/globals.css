@@ -519,14 +519,17 @@ h2 {
   flex-wrap: wrap;
   gap: 4px;
 }
-.filter-count {
-  border-radius: 4px;
-  padding: 0 5px;
-  color: var(--primary);
-  background: #26322b;
-  font-variant-numeric: tabular-nums;
+.role-filter-group {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  margin: 0;
+}
+.role-filter-group > * {
+  min-width: 0;
 }
 .filters .advanced-filters {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   border-top: 1px solid var(--border);
   margin-top: 18px;
   padding-top: 18px;
