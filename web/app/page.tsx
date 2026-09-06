@@ -683,9 +683,6 @@ export default function Home() {
           <b>24</b>
         </div>
         <div className="header-actions">
-          <span className="local-status">
-            <i /> Local workspace
-          </span>
           <AppActions />
           <Button
             variant="ghost"

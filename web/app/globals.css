@@ -219,19 +219,6 @@ button {
   border-radius: 4px;
   padding: 0 5px;
 }
-.local-status {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  font-size: 14px;
-  color: #acbdbc;
-}
-.local-status i {
-  width: 7px;
-  height: 7px;
-  background: #c4ef75;
-  border-radius: 50%;
-}
 .workspace-heading {
   display: flex;
   justify-content: space-between;
@@ -1287,9 +1274,6 @@ h2 {
   }
   .masthead {
     min-height: 70px;
-  }
-  .local-status {
-    display: none;
   }
   .workspace-heading {
     margin: 24px 0;
