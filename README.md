@@ -4,6 +4,28 @@ A local, read-only Football Manager 2024 save reader for desktop and browser. Se
 
 Supports FM24 internal save format **24.3.0+0**, compressed or uncompressed. Not affiliated with Sports Interactive or SEGA.
 
+## Showcase
+
+Desktop screenshots using **James Colin - Luton Town (Manager)**, with 67,714 players indexed on the in-game date of 3 July 2023.
+
+### Player search and filters
+
+Explore your save with filters for club, nationality, position, age, ability, attributes, and role rating.
+
+![Player search and filters in FM SaveLens 24 with the James Colin - Luton Town save loaded](assets/showcase/player-search.png)
+
+### Player attributes
+
+Inspect current and potential ability, position familiarity, and detailed attributes in each player's profile.
+
+![Erling Haaland's player profile showing ability, positions, and technical, mental, physical, goalkeeping, and foot attributes](assets/showcase/player-profile-attributes.png)
+
+### Role ratings
+
+Compare a player's ratings across roles and duties to find a fit for your tactics.
+
+![Erling Haaland's role ratings for Pressing Forward, Advanced Forward, Complete Forward, and Deep-Lying Forward](assets/showcase/player-role-ratings.png)
+
 ## How to run
 
 Download a build from [GitHub Releases](https://github.com/MSalman5230/FM-SaveLens-24/releases). Packaged builds need neither Node.js nor Rust.
