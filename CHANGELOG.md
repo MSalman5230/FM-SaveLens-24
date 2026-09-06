@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.0](https://github.com/MSalman5230/FM-SaveLens-24/compare/v1.3.0...v1.4.0) (2026-09-06)
+
+
+### Features
+
+* add macOS release builds and in-app update checks ([6218d32](https://github.com/MSalman5230/FM-SaveLens-24/commit/6218d3229f7f34d6c683ec8ae4ae233a182e67eb))
+* add update notifications and release checks ([731739e](https://github.com/MSalman5230/FM-SaveLens-24/commit/731739e3f297a9fa827a6d7a6c15a0e58b8e8cb1))
+
 ## [1.3.0](https://github.com/MSalman5230/FM-SaveLens-24/compare/v1.2.0...v1.3.0) (2026-09-06)
 
 
