@@ -40,13 +40,13 @@ import {
 } from "@/components/ui/dialog";
 import { Progress, ProgressLabel, ProgressValue } from "@/components/ui/progress";
 import { Pagination, PaginationContent, PaginationItem } from "@/components/ui/pagination";
-import { api, ApiError, date, size } from "@/lib/scout-api";
+import { api, date, size } from "@/lib/scout-api";
 import { watchSnapshotFocus } from "@/lib/focus-refresh";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { RoleRatings } from "@/components/role-ratings";
 import { RatingSystemSettings } from "@/components/rating-system-settings";
 import { CacheSettings } from "@/components/cache-settings";
-import { CacheLifecycle, isCacheAbort, watchCacheRevision, type CacheClearResult } from "@/lib/cache";
+import { CacheLifecycle, handleSnapshotError, isCacheAbort, watchCacheRevision, type CacheClearResult } from "@/lib/cache";
 import { playerSearchQuery, ratingIdentity, ratingParams, reconcileRatingView, sameRatingSystem } from "@/lib/rating-systems";
 import { roleLabel, selectRole } from "@/lib/role-ratings";
 import { PlayerColumnChooser } from "@/components/player-column-chooser";
@@ -378,6 +378,21 @@ export default function Home() {
   const searching = Boolean(snapshotId && roleCatalog && !result && !searchError);
   const showSearchSpinner = searching && spinnerKey === searchKey;
   const searchMessage = pageCache.prepared ? 'Searching players…' : 'Preparing player ratings…';
+  const unloadCache = useCallback(() => {
+    cacheLifecycle.cancel();
+    pageCache.clear();
+    setSnapshot(null); setDetailId(null); setDetailResponse(null); setDetailRole('');
+    setSearchResponse(null); setSpinnerKey(null); setSearchError(''); setDetailError('');
+    setJob(null); setStarting(false); setFilters({ ...defaultFilters }); setPage(1);
+    const nextSort = resolveColumnSort(columnIds, 'pa', 'desc', '');
+    setSort(nextSort.sort); setDirection(nextSort.direction);
+    setError(''); setNotice('Cache cleared. Read a save to load it again.');
+    setSaves(previous => previous.map(save => ({ ...save, cached: false })));
+    void refresh().catch(e => { if (!isCacheAbort(e)) setError(errorText(e)); });
+  }, [cacheLifecycle, pageCache, columnIds, refresh]);
+  const observeCacheRevision = useCallback((revision: string) => {
+    if (cacheLifecycle.observe(revision)) unloadCache();
+  }, [cacheLifecycle, unloadCache]);
   // Remote request state must reset whenever a new search starts.
   // oxlint-disable-next-line react/react-compiler
   useEffect(() => {
@@ -403,13 +418,15 @@ export default function Home() {
       onError: e => {
         if (isCacheAbort(e)) return;
         setSearchResponse(null);
-        if (e instanceof ApiError && e.status === 409) void refreshRoleCatalog().catch(error => setSearchError(errorText(error)));
-        else setSearchError(errorText(e));
+        void handleSnapshotError(e, {
+          request: cacheApi, onRevision: observeCacheRevision, refreshRoles: refreshRoleCatalog,
+          onError: error => setSearchError(errorText(error)),
+        });
       },
       onSettled: () => { clearTimeout(spinner); setSpinnerKey(null); },
     });
     return () => { clearTimeout(spinner); stop(); };
-  }, [snapshotId, query, searchKey, roleCatalog, refreshRoleCatalog, pageCache, filters, cacheApi, clearingCache]);
+  }, [snapshotId, query, searchKey, roleCatalog, refreshRoleCatalog, pageCache, filters, cacheApi, clearingCache, observeCacheRevision]);
   // Clear the previous player's remote data before requesting another identity.
   // oxlint-disable-next-line react/react-compiler
   useEffect(() => {
@@ -424,12 +441,13 @@ export default function Home() {
         else void refreshRoleCatalog().catch(e => setDetailError(errorText(e)));
       },
       onError: e => {
-        if (isCacheAbort(e)) return;
-        if (e instanceof ApiError && e.status === 409) void refreshRoleCatalog().catch(error => setDetailError(errorText(error)));
-        else setDetailError(errorText(e));
+        void handleSnapshotError(e, {
+          request: cacheApi, onRevision: observeCacheRevision, refreshRoles: refreshRoleCatalog,
+          onError: error => setDetailError(errorText(error)),
+        });
       },
     });
-  }, [detailId, snapshotId, detailKey, systemQuery, roleCatalog, refreshRoleCatalog, cacheApi, clearingCache]);
+  }, [detailId, snapshotId, detailKey, systemQuery, roleCatalog, refreshRoleCatalog, cacheApi, clearingCache, observeCacheRevision]);
   function openPlayer(id: number, roleId?: string) {
     setDetailRole(roleId ?? (sort.startsWith('role:') ? sort.slice(5) : filters.role));
     setDetailId(id);
@@ -469,21 +487,6 @@ export default function Home() {
     setDirection(nextSort.direction);
     setPage(1);
   };
-  const unloadCache = useCallback(() => {
-    cacheLifecycle.cancel();
-    pageCache.clear();
-    setSnapshot(null); setDetailId(null); setDetailResponse(null); setDetailRole('');
-    setSearchResponse(null); setSpinnerKey(null); setSearchError(''); setDetailError('');
-    setJob(null); setStarting(false); setFilters({ ...defaultFilters }); setPage(1);
-    const nextSort = resolveColumnSort(columnIds, 'pa', 'desc', '');
-    setSort(nextSort.sort); setDirection(nextSort.direction);
-    setError(''); setNotice('Cache cleared. Read a save to load it again.');
-    setSaves(previous => previous.map(save => ({ ...save, cached: false })));
-    void refresh().catch(e => { if (!isCacheAbort(e)) setError(errorText(e)); });
-  }, [cacheLifecycle, pageCache, columnIds, refresh]);
-  const observeCacheRevision = useCallback((revision: string) => {
-    if (cacheLifecycle.observe(revision)) unloadCache();
-  }, [cacheLifecycle, unloadCache]);
   useEffect(() => {
     if (initializing || clearingCache) return;
     return watchCacheRevision({ target: window, visibility: document, request: cacheApi, onRevision: observeCacheRevision });

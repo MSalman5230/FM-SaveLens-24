@@ -1,4 +1,4 @@
-import { api } from './scout-api.ts';
+import { api, ApiError } from './scout-api.ts';
 
 export type CacheUsage = {
   diskBytes: number | null;
@@ -52,6 +52,28 @@ export class CacheLifecycle {
 }
 
 export const isCacheAbort = (error: unknown) => error instanceof Error && error.name === 'AbortError';
+
+/** Cache clears invalidate the save; other conflicts refresh its rating system. */
+export async function handleSnapshotError(error: unknown, { request, onRevision, refreshRoles, onError }: {
+  request: typeof api;
+  onRevision: (revision: string) => void;
+  refreshRoles: () => Promise<void>;
+  onError: (error: unknown) => void;
+}): Promise<void> {
+  if (isCacheAbort(error)) return;
+  try {
+    if (error instanceof ApiError && error.code === 'CACHE_CHANGED') {
+      const settings = await request<{ cacheRevision: string }>('/settings');
+      onRevision(settings.cacheRevision);
+    } else if (error instanceof ApiError && error.status === 409) {
+      await refreshRoles();
+    } else {
+      onError(error);
+    }
+  } catch (recoveryError) {
+    if (!isCacheAbort(recoveryError)) onError(recoveryError);
+  }
+}
 
 /** Also works when desktop and browser clients do not share browser storage. */
 export function watchCacheRevision({ target, visibility, request, onRevision }: {
