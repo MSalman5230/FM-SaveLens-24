@@ -31,6 +31,57 @@ function strategy(initial) {
     includeComponentInTag:false,
   });
 }
+const releaseAssetNames = [
+  'FM-SaveLens-24-v2.3.4-windows-x64-portable.zip',
+  'FM-SaveLens-24-v2.3.4-windows-x64-setup.exe',
+  'FM-SaveLens-24-v2.3.4-linux-x86_64.AppImage',
+  'FM-SaveLens-24-v2.3.4-linux-x86_64.flatpak',
+  'FM-SaveLens-24-v2.3.4-macos-arm64.dmg',
+  'FM-SaveLens-24-v2.3.4-macos-x86_64.dmg',
+];
+function withReleaseAssets(run) {
+  const root = mkdtempSync(join(tmpdir(), 'fm-savelens-assets-'));
+  const dist = join(root, 'dist');
+  try {
+    mkdirSync(dist);
+    writeFileSync(join(root, 'package.json'), JSON.stringify({version:'2.3.4'}));
+    for (const name of releaseAssetNames) writeFileSync(join(dist, name), 'abc');
+    const validate = () => execFileSync(process.execPath,
+      [join(process.cwd(), 'scripts/release-assets.mjs')], {cwd:root, stdio:'pipe'});
+    run({dist, validate});
+  } finally {rmSync(root, {recursive:true, force:true});}
+}
+
+test('Release assets require six packages and generate repeatable SHA-256 checksums', () => {
+  withReleaseAssets(({dist, validate}) => {
+    const expected = [...releaseAssetNames].sort().map(name =>
+      `ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad  ${name}\n`).join('');
+    assert.match(validate().toString(), /All 6 release packages verified/);
+    assert.equal(readFileSync(join(dist, 'SHA256SUMS.txt'), 'utf8'), expected);
+    writeFileSync(join(dist, 'SHA256SUMS.txt'), 'stale checksums\n');
+    validate();
+    assert.equal(readFileSync(join(dist, 'SHA256SUMS.txt'), 'utf8'), expected);
+  });
+});
+
+for (const missing of releaseAssetNames) {
+  test(`Release assets reject missing ${missing}`, () => {
+    withReleaseAssets(({dist, validate}) => {
+      rmSync(join(dist, missing));
+      assert.throws(validate, error => error.status !== 0 && error.stderr.toString().includes(missing));
+      assert.equal(existsSync(join(dist, 'SHA256SUMS.txt')), false);
+    });
+  });
+}
+
+test('Release assets reject unexpected downloads', () => {
+  withReleaseAssets(({dist, validate}) => {
+    writeFileSync(join(dist, 'unexpected.zip'), 'abc');
+    assert.throws(validate, error => error.status !== 0 && error.stderr.toString().includes('unexpected.zip'));
+    assert.equal(existsSync(join(dist, 'SHA256SUMS.txt')), false);
+  });
+});
+
 test('Cargo.lock keeps LF line endings with Windows Git checkout settings', () => {
   const root=mkdtempSync(join(tmpdir(),'fm-savelens-checkout-'));
   const git=(...args)=>execFileSync('git',['-c','core.autocrlf=true',...args],{cwd:root,stdio:'pipe'});

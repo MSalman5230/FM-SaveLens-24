@@ -55,7 +55,32 @@ flatpak install --user ./FM-SaveLens-24-*.flatpak
 flatpak run io.github.MSalman5230.FMSaveLens24
 ```
 
-After launching, finish saving in Football Manager, set your save folder in **Settings**, choose a save, and click **Read save**.
+### macOS (Apple Silicon or Intel)
+
+- **Apple Silicon (M-series):** Download `FM-SaveLens-24-v<version>-macos-arm64.dmg`.
+- **Intel:** Download `FM-SaveLens-24-v<version>-macos-x86_64.dmg`.
+
+Open the DMG, drag **FM SaveLens 24** into **Applications**, then launch it from there. You can find your Mac's chip or processor under **Apple menu > About This Mac**.
+
+The macOS builds are ad-hoc signed and are not notarized by Apple. If macOS blocks the first launch, open **System Settings > Privacy & Security**, choose **Open Anyway** for FM SaveLens 24, and confirm. Only allow a download you trust from this project's releases.
+
+For browser mode, first quit the desktop app with **Cmd+Q**, then run this command in **Terminal**:
+
+```sh
+"/Applications/FM SaveLens 24.app/Contents/MacOS/fm-savelens-24" --browser
+```
+
+Keep Terminal open while using browser mode. Before reopening the desktop app, press **Ctrl+C** in Terminal to stop browser mode and release the shared data directory.
+
+After launching on any platform, finish saving in Football Manager, set your save folder in **Settings**, choose a save, and click **Read save**.
+
+### Update notifications
+
+Open **About** to check for updates, see the last successful check, or turn off **Automatically check for updates**. Automatic checks run once a day while the app is open and contact GitHub without sending save data. Offline checks never interrupt your work.
+
+A banner announces newer stable releases once all downloads are ready. **Dismiss** hides that version's banner across restarts; its **View release** button remains available in About. A later version shows a new banner. **View release** opens GitHub in your system browser so you can download and install the appropriate package yourself. Update preferences survive clearing save caches.
+
+Existing installations need a manual upgrade to the first release containing update notifications before they can notify you about later releases.
 
 ## Contributing
 
@@ -63,7 +88,7 @@ Open an issue for bugs or ideas, or fork the repository and submit a pull reques
 
 Use a Conventional Commit PR title, such as `fix: preserve fractional snapshot timestamps` or `feat(ui): add app branding`. The **PR title** check fails invalid titles with format guidance; edit the title manually to correct it. **Squash and merge using the validated title as the commit subject** so Release Please can detect the change. See [PR title rules and setup](docs/PR_TITLES.md).
 
-To develop on Windows or Linux, install Node.js **24.14+**, Rust via rustup (the toolchain is pinned in `rust-toolchain.toml`), and the [Tauri build prerequisites](https://v2.tauri.app/start/prerequisites/). Then:
+To develop on Windows, Linux, or macOS, install Node.js **24.14+**, Rust via rustup (the toolchain is pinned in `rust-toolchain.toml`), and the [Tauri build prerequisites](https://v2.tauri.app/start/prerequisites/). Then:
 
 ```sh
 git clone https://github.com/MSalman5230/FM-SaveLens-24.git

@@ -180,13 +180,15 @@ button {
   color: var(--muted-foreground);
 }
 .scout-app {
-  max-width: 1760px;
-  margin: auto;
+  width: 100%;
   padding: 0 40px 40px;
 }
 .masthead {
-  height: 85px;
+  min-height: 85px;
+  padding-block: 14px;
   display: flex;
+  flex-wrap: wrap;
+  gap: 12px 22px;
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid var(--border);
@@ -216,19 +218,6 @@ button {
   border: 1px solid #59694a;
   border-radius: 4px;
   padding: 0 5px;
-}
-.local-status {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  font-size: 14px;
-  color: #acbdbc;
-}
-.local-status i {
-  width: 7px;
-  height: 7px;
-  background: #c4ef75;
-  border-radius: 50%;
 }
 .workspace-heading {
   display: flex;
@@ -369,8 +358,16 @@ h2 {
 }
 .header-actions {
   display: flex;
-  gap: 22px;
+  flex-wrap: wrap;
+  gap: 8px 16px;
   align-items: center;
+}
+.about-version {
+  display: grid;
+  gap: 12px;
+}
+.about-version > button {
+  justify-self: start;
 }
 .save-date {
   display: grid;
@@ -1276,10 +1273,7 @@ h2 {
     padding: 0 14px 24px;
   }
   .masthead {
-    height: 70px;
-  }
-  .local-status {
-    display: none;
+    min-height: 70px;
   }
   .workspace-heading {
     margin: 24px 0;
@@ -1615,3 +1609,11 @@ h2 {
 .cache-usage dd { font-variant-numeric: tabular-nums; }
 .cache-settings > button { justify-self: start; }
 .cache-error { color: var(--destructive); white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; }
+
+.about-update-actions, .about-update-toggle { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.about-update-toggle { font-size: 14px; cursor: pointer; }
+.about-update-meta, .update-error { font-size: 14px; overflow-wrap: anywhere; }
+.update-error { color: var(--destructive); }
+.update-banner { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 12px 16px; margin-top: 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--muted); font-size: 14px; }
+.update-banner > span:first-child { flex: 1; }
+.update-banner > .update-error { flex-basis: 100%; }

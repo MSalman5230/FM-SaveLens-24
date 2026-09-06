@@ -11,6 +11,68 @@ on:
 permissions:
   contents: read
 jobs:
+  macos:
+    name: macOS (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            target: aarch64-apple-darwin
+            arch: arm64
+          - runner: macos-15-intel
+            target: x86_64-apple-darwin
+            arch: x86_64
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            web/package-lock.json
+      - name: Install Rust toolchain
+        run: |
+          rustup show
+          rustup target add "${{ matrix.target }}"
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          key: macos-${{ matrix.target }}
+      - run: npm ci
+      - run: npm --prefix web ci
+      - run: npm --prefix web run lint
+      - run: npm run test:web
+      - run: npm run build:web
+      - name: Verify versions
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: node scripts/check-versions.mjs "$RELEASE_TAG"
+      - run: cargo fmt --all -- --check
+      - run: node --test tests/release.test.mjs
+      - run: cargo test --locked -p fm-savelens-backend
+      - run: npm run tauri -- build --target ${{ matrix.target }} --bundles dmg -- --locked
+      - run: cargo clippy --locked --workspace --all-targets -- -D warnings
+      - name: Prepare DMG
+        env:
+          MACOS_TARGET: ${{ matrix.target }}
+          MACOS_ARCH: ${{ matrix.arch }}
+        run: |
+          mkdir -p dist
+          version=$(node -p "require('./package.json').version")
+          cp target/"$MACOS_TARGET"/release/bundle/dmg/*.dmg "dist/FM-SaveLens-24-v${version}-macos-${MACOS_ARCH}.dmg"
+      - name: Verify DMG architecture, signature, and browser mode
+        run: bash scripts/smoke-macos-package.sh "${{ matrix.arch }}" dist/*.dmg
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: packages-macos-${{ matrix.arch }}
+          path: dist/*.dmg
+          if-no-files-found: error
   windows:
     runs-on: windows-2022
     timeout-minutes: 60
