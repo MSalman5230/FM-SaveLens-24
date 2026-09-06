@@ -375,23 +375,6 @@ h2 {
   gap: 8px 16px;
   align-items: center;
 }
-.browser-action {
-  position: relative;
-}
-.browser-action-error {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  z-index: 10;
-  width: min(300px, calc(100vw - 28px));
-  padding: 12px;
-  border: 1px solid var(--destructive);
-  border-radius: 8px;
-  background: var(--popover);
-  color: var(--destructive);
-  font-size: 14px;
-  overflow-wrap: anywhere;
-}
 .about-version {
   display: grid;
   gap: 12px;

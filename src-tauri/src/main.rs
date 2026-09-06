@@ -1,19 +1,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 use fm_savelens_backend::service;
 use std::sync::{Arc, Mutex};
-use tauri::{ipc::CapabilityBuilder, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_dialog::DialogExt;
-
-struct BrowserUrl(String);
-
-#[tauri::command]
-async fn open_in_browser(url: tauri::State<'_, BrowserUrl>) -> Result<(), String> {
-    let url = url.0.clone();
-    tauri::async_runtime::spawn_blocking(move || open::that_detached(url))
-        .await
-        .map_err(|error| format!("Could not open the browser: {error}"))?
-        .map_err(|error| format!("Could not open the browser: {error}"))
-}
 
 #[cfg(windows)]
 fn configure_bundled_webview() -> std::io::Result<()> {
@@ -70,7 +59,6 @@ fn main() {
     let executor = runtime.clone();
     let app = tauri::Builder::default()
         .enable_macos_default_menu(false)
-        .invoke_handler(tauri::generate_handler![open_in_browser])
         .plugin(tauri_plugin_dialog::init())
         .setup(move |app| {
             #[cfg(windows)]
@@ -95,15 +83,6 @@ fn main() {
             let url = started.url();
             let allowed = url.clone();
             *owned.lock().unwrap() = Some(started);
-            app.manage(BrowserUrl(url.clone()));
-            let capability = CapabilityBuilder::new("open-app-in-browser")
-                .window("main")
-                .local(false)
-                .remote(format!("{url}/*"))
-                .permission("allow-open-in-browser");
-            #[cfg(debug_assertions)]
-            let capability = capability.remote("http://127.0.0.1:5173/*".into());
-            app.add_capability(capability)?;
             let development = if cfg!(debug_assertions) {
                 std::env::var("FMSAVELENS_DEV_URL").ok()
             } else {

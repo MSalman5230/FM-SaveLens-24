@@ -918,7 +918,6 @@ name = "fm-savelens-24"
 version = "1.3.0"
 dependencies = [
  "fm-savelens-backend",
- "open",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
